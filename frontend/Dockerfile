@@ -7,6 +7,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --prefer-offline --no-audit --no-fund
 COPY . .
+# Optional API key baked into the SPA so the Ops console can authenticate (RBAC stays enforced).
+ARG VITE_API_KEY=""
+ENV VITE_API_KEY=$VITE_API_KEY
 RUN npm run build
 
 # ---- Stage 2: serve ---------------------------------------------------------
