@@ -117,6 +117,21 @@ async def analytics(
     }
 
 
+@router.get("/analytics/intents")
+async def analytics_intents(
+    top_n: int = 20,
+    recorder: AnalyticsRecorder = Depends(get_analytics),
+    principal: Principal = Depends(get_principal),
+    policy: PolicyEngine = Depends(get_policy),
+) -> dict:
+    """Return the top-N query intents (categories) with counts and examples."""
+    policy.require(principal, Permission.VIEW_ANALYTICS)
+    from app.analytics.intent_aggregator import IntentAggregator
+
+    summaries = IntentAggregator(recorder).top_intents(top_n)
+    return {"intents": [s.to_dict() for s in summaries]}
+
+
 @router.get("/indices")
 async def indices(agent: RoverAgent = Depends(get_agent)) -> dict:
     """List searchable indices via the active search provider."""

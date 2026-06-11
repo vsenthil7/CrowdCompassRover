@@ -98,6 +98,7 @@ next begins.
 | S76 | Tenant key-scoping across stores | InMemoryEventRepository keys scoped by active tenant; structural cross-tenant isolation; isolation tests | ✅ |
 | S77 | Deploy + integration artifacts | MCP put_mapping/bulk_index/count; RRF hybrid query (open_now boost, tunable weights); Dockerfiles + compose; runbook; enhanced CI; SBOM/Makefile | ✅ |
 | S78 | Width modules (no-infra) | Persistence/Redis/GCP settings (P4.S1); geofence point-in-polygon (P6.S7); A/B answer-quality eval framework (P6.S11/P7.S3); relevance-tuning weights + admin API (P6.S3/P7.S4) | ✅ |
+| S79 | More width modules + deploy YAML | OIDC/JWT resolver (P6.S5); partner connector framework (P6.S8); intent analytics + API (P6.S10/P7.S2); Cloud Run service.yaml + cloudbuild.yaml (P1.S4) | ✅ |
 
 ---
 
@@ -597,12 +598,28 @@ fully covered; deploy/CI/runbook are artifacts validated structurally.
 
 **Backend 592 / Frontend 174 tests, both 100%.**
 
+### S79 — OIDC, connectors, intent analytics, Cloud Run YAML (Perplexity P6.S5/S8/S10, P7.S2, P1.S4) ✅
+- **P6.S5** — `authz/oidc_resolver.py`: validates Bearer JWTs against a JWKS (injectable for
+  offline tests), maps the `groups` claim to roles, defaults to visitor, raises 401 on
+  expired/invalid/wrong-audience tokens; API-key path still delegates to the base resolver.
+  Tested with a locally-generated RS256 keypair (no network).
+- **P6.S8** — `app/connectors/`: `ConnectorSpec`/`ConnectorStatus`, a `RestJsonConnector`
+  that paginates a remote API (injectable transport, tested offline) and a `map_record`
+  normaliser to `CityEvent`, plus a per-tenant `ConnectorRegistry`.
+- **P6.S10 / P7.S2** — `analytics/intent_aggregator.py`: clusters recorded queries by
+  category (intent) into per-intent count / examples / zero-result / avg-latency summaries;
+  `GET /analytics/intents` (VIEW_ANALYTICS). Recorder gained a read-only `events()` accessor.
+- **P1.S4** — `deploy/cloudrun/service.yaml` + `cloudbuild.yaml`; secrets are Secret Manager
+  references (no plaintext), valid YAML, startup/liveness probes on `/api/health`.
+
+**Backend 622 / Frontend 174 tests, both 100%.**
+
 ---
 
 ## Coverage Ledger
 | Layer | Tool | Target | Latest |
 |-------|------|-------:|-------:|
-| Backend | pytest-cov | 100% | ✅ 100.00% (592 tests, 4104 stmts) |
+| Backend | pytest-cov | 100% | ✅ 100.00% (622 tests, 4291 stmts) |
 | Frontend | vitest --coverage | 100% | ✅ 100.00% (174 tests) |
 | E2E flows | Playwright | 100% of journeys | ✅ 8 journeys (browser run pending CDN access; flows validated via live API) |
 

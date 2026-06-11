@@ -544,3 +544,15 @@ async def test_relevance_weights_forbidden_for_anonymous(client):
         json={"keyword_weight": 0.5, "vector_weight": 0.5},
     )
     assert r.status_code == 403
+
+
+async def test_analytics_intents_endpoint(admin_client):
+    await admin_client.post("/api/search", json={"query": "halal food open now"})
+    r = await admin_client.get("/api/analytics/intents")
+    assert r.status_code == 200
+    assert "intents" in r.json()
+
+
+async def test_analytics_intents_forbidden_for_anonymous(client):
+    r = await client.get("/api/analytics/intents")
+    assert r.status_code == 403

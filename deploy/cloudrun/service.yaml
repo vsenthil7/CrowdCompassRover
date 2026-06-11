@@ -1,0 +1,61 @@
+# Cloud Run service for the CrowdCompass Rover backend.
+# Secrets (API keys, Elastic/Gemini credentials) are Secret Manager references,
+# never plain-text env values.
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: crowdcompass-rover
+  labels:
+    app: crowdcompass-rover
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "10"
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 30
+      containers:
+        - image: gcr.io/PROJECT_ID/crowdcompass-rover-backend:latest
+          ports:
+            - containerPort: 8000
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          env:
+            - name: APP_MODE
+              value: "real"
+            - name: ELASTIC_MCP_URL
+              value: "https://your-elastic-mcp-endpoint"
+            - name: ELASTIC_INDEX
+              value: "cc-city-events"
+            - name: PERSISTENCE_BACKEND
+              value: "firestore"
+            - name: API_KEYS
+              valueFrom:
+                secretKeyRef:
+                  name: rover-api-keys
+                  key: latest
+            - name: ELASTIC_MCP_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: rover-elastic-mcp-api-key
+                  key: latest
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: rover-gemini-api-key
+                  key: latest
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: 8000
+            failureThreshold: 10
+            periodSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 8000
+            periodSeconds: 30

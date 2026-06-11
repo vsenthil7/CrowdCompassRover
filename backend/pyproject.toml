@@ -23,6 +23,7 @@ dev = [
     "asgi-lifespan>=2.1",
     "cyclonedx-bom>=4.4",
     "pip-audit>=2.7",
+    "python-jose[cryptography]>=3.3",
 ]
 
 [tool.setuptools.packages.find]

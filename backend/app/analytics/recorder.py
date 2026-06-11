@@ -113,6 +113,10 @@ class AnalyticsRecorder:
         """Number of buffered events."""
         return len(self._events)
 
+    def events(self) -> list["QueryEvent"]:
+        """A snapshot copy of the buffered query events (most recent last)."""
+        return list(self._events)
+
     def prune_before(self, cutoff_ts: float) -> int:
         """Drop events older than cutoff_ts; return how many were removed."""
         kept = [e for e in self._events if e.ts >= cutoff_ts]
