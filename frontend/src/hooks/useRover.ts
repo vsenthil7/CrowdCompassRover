@@ -6,11 +6,18 @@ import type {
   GeoPoint,
   HealthStatus,
   HistoryEntry,
+  RouteResponse,
+  ScoredEvent,
   SearchResponse,
 } from "../lib/types";
 
 // Default "stadium" location used when the location toggle is on (MetLife Stadium).
 export const DEFAULT_LOCATION: GeoPoint = { lat: 40.8135, lon: -74.0745 };
+
+export interface RouteView {
+  destinationName: string;
+  routes: RouteResponse;
+}
 
 export interface RoverState {
   query: string;
@@ -21,6 +28,8 @@ export interface RoverState {
   answer: ChatAnswer | null;
   health: HealthStatus | null;
   history: HistoryEntry[];
+  routeView: RouteView | null;
+  routeLoading: boolean;
 }
 
 export function useRover() {
@@ -32,6 +41,8 @@ export function useRover() {
   const [answer, setAnswer] = useState<ChatAnswer | null>(null);
   const [health, setHealth] = useState<HealthStatus | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [routeView, setRouteView] = useState<RouteView | null>(null);
+  const [routeLoading, setRouteLoading] = useState(false);
 
   const refreshHealth = useCallback(() => {
     api
@@ -81,10 +92,43 @@ export function useRover() {
     [query, useLocation, refreshHealth],
   );
 
+  const routeTo = useCallback(
+    async (hit: ScoredEvent) => {
+      // Origin is the user's stadium location; when location is off we still use the
+      // default anchor so routing remains useful.
+      const origin = DEFAULT_LOCATION;
+      setRouteLoading(true);
+      try {
+        const res = await api.routes(origin, hit.event.location, null);
+        setRouteView({ destinationName: hit.event.name, routes: res });
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Unknown error");
+      } finally {
+        setRouteLoading(false);
+      }
+    },
+    [],
+  );
+
+  const clearRoute = useCallback(() => setRouteView(null), []);
+
   return {
-    state: { query, useLocation, loading, error, response, answer, health, history },
+    state: {
+      query,
+      useLocation,
+      loading,
+      error,
+      response,
+      answer,
+      health,
+      history,
+      routeView,
+      routeLoading,
+    },
     setQuery,
     setUseLocation,
     run,
+    routeTo,
+    clearRoute,
   };
 }

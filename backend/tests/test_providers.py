@@ -118,3 +118,60 @@ async def test_orchestrator_chat_with_session():
     ans = await comp.agent.chat("halal food", None, session_id="s2")
     assert ans.answer
     assert comp.sessions.active_count == 1
+
+
+async def test_orchestrator_records_analytics():
+    comp = build_components(Settings(app_mode=AppMode.MOCK))
+    await comp.agent.search("halal food open now", None, 3)
+    await comp.agent.chat("where is the stadium", None)
+    assert comp.analytics.size == 2
+
+
+async def test_orchestrator_route_to():
+    from app.enrichment.routes import TravelMode
+    from app.models.domain import GeoPoint
+
+    comp = build_components(Settings(app_mode=AppMode.MOCK))
+    res = await comp.agent.route_to(
+        GeoPoint(lat=40.81, lon=-74.07),
+        GeoPoint(lat=40.758, lon=-73.985),
+        [TravelMode.WALK, TravelMode.DRIVE],
+    )
+    assert res.cheapest is not None
+    assert res.fastest is not None
+
+
+async def test_orchestrator_route_default_modes():
+    from app.models.domain import GeoPoint
+
+    comp = build_components(Settings(app_mode=AppMode.MOCK))
+    res = await comp.agent.route_to(
+        GeoPoint(lat=40.81, lon=-74.07), GeoPoint(lat=40.758, lon=-73.985)
+    )
+    assert len(res.options) == 3  # default walk/transit/drive
+
+
+def test_build_route_provider_real_with_key():
+    from app.core.providers import build_route_provider
+    from app.enrichment.google_routes import GoogleRouteProvider
+
+    s = Settings(app_mode=AppMode.REAL, google_maps_api_key="k")
+    provider, closables = build_route_provider(s)
+    assert isinstance(provider, GoogleRouteProvider)
+    assert len(closables) == 1
+
+
+def test_build_route_provider_mock_default():
+    from app.core.providers import build_route_provider
+    from app.enrichment.mock_routes import MockRouteProvider
+
+    provider, closables = build_route_provider(Settings(app_mode=AppMode.MOCK))
+    assert isinstance(provider, MockRouteProvider)
+    assert closables == []
+
+
+async def test_build_health_registry_runs():
+    comp = build_components(Settings(app_mode=AppMode.MOCK))
+    report = await comp.health.run()
+    assert report.ready is True
+    assert {c.name for c in report.components} == {"search", "events_repo"}

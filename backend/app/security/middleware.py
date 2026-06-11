@@ -13,7 +13,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from app.security.auth import ApiKeyAuthenticator
 from app.security.rate_limit import TokenBucketRateLimiter
 
-_PUBLIC_PREFIXES = ("/api/health", "/api/metrics", "/docs", "/openapi.json", "/redoc")
+_PUBLIC_PREFIXES = ("/api/health", "/api/ready", "/api/metrics", "/docs", "/openapi.json", "/redoc")
 
 
 def _problem(status: int, code: str, title: str, path: str) -> bytes:

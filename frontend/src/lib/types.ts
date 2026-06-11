@@ -90,3 +90,27 @@ export interface HistoryEntry {
   language: string;
   resultCount: number;
 }
+
+export type TravelMode = "walk" | "transit" | "drive" | "bicycle";
+
+export interface RouteLeg {
+  mode: TravelMode;
+  instruction: string;
+  distance_km: number;
+  duration_min: number;
+}
+
+export interface RouteOption {
+  mode: TravelMode;
+  total_distance_km: number;
+  total_duration_min: number;
+  estimated_cost: number;
+  currency: string;
+  legs: RouteLeg[];
+}
+
+export interface RouteResponse {
+  options: RouteOption[];
+  cheapest: RouteOption | null;
+  fastest: RouteOption | null;
+}

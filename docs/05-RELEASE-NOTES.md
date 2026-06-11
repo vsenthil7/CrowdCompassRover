@@ -88,3 +88,39 @@ modules; tests from 95 → 205; frontend tests from 38 → 47. All at 100% cover
   `CACHE_TTL`, `CACHE_MAXSIZE`.
 - Ranking toggles: `ENABLE_RERANKING`, `ENABLE_QUERY_EXPANSION`, `ENABLE_SPELL_CORRECTION`.
 - Conversation: `SESSION_TTL`. Observability: `LOG_LEVEL`. Ingestion: `INGEST_STALE_AFTER`.
+
+---
+
+## v1.2.0 — 2026-06-01
+
+Platform depth expansion. Backend grew to **75 modules / ~4,450 lines / 248 tests**;
+frontend to **64 tests**. Both at 100% coverage.
+
+### New backend capabilities
+- **Persistence** — hexagonal repository ports with async-safe in-memory adapters
+  (generic + event repository with bulk/by-city), ready for Firestore/Postgres adapters.
+- **Route enrichment** — the headline "cheapest / fastest route to the stadium now": route
+  domain models plus a deterministic mock provider and a real Google Routes provider.
+- **Analytics & audit** — per-query event capture (language/category/city/latency/result
+  count) with aggregation snapshots (zero-result rate, top queries, breakdowns).
+- **Health & readiness** — concurrent, time-bounded dependency checks with a liveness vs
+  readiness distinction and degraded/unhealthy states.
+- **Scheduling** — async interval scheduler for periodic jobs (e.g. ingestion refresh),
+  with isolated per-job failure handling.
+- **i18n** — centralised translation catalog + translator; the answerer now sources all
+  strings from it instead of embedded dicts.
+- **Config profiles** — dev/staging/prod profiles and a settings validator that flags
+  unsafe combinations (real mode without creds, prod in mock mode, prod without auth).
+
+### New frontend capabilities
+- **RoutePanel** showing ranked route options with cheapest/fastest badges.
+- **ErrorBoundary** for render-error recovery so one failing component can't blank the app.
+- A "Route here" action on result rows wired to the routing hook.
+
+### API additions
+- `GET /api/ready` (readiness probe), `GET /api/analytics` (query analytics),
+  `POST /api/routes` (route enrichment).
+- Orchestrator now records analytics on every search/chat.
+
+### Config additions
+- Profiles & validation via `core/profiles.py`; route enrichment uses `GOOGLE_MAPS_API_KEY`.

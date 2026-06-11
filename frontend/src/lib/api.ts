@@ -2,6 +2,7 @@ import type {
   ChatAnswer,
   GeoPoint,
   HealthStatus,
+  RouteResponse,
   SearchResponse,
 } from "./types";
 
@@ -60,4 +61,16 @@ export async function health(): Promise<HealthStatus> {
     throw new ApiError(res.status, "health failed");
   }
   return (await res.json()) as HealthStatus;
+}
+
+export async function routes(
+  origin: GeoPoint,
+  destination: GeoPoint,
+  modes: string[] | null = null,
+): Promise<RouteResponse> {
+  return postJson<RouteResponse>("/routes", {
+    origin,
+    destination,
+    modes,
+  });
 }

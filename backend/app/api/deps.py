@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 from app.agent.orchestrator import RoverAgent
+from app.analytics.recorder import AnalyticsRecorder
 from app.conversation.session import SessionStore
 from app.core.config import get_settings
 from app.core.providers import Components, build_components
+from app.health.checks import HealthRegistry
 
 _components: Components | None = None
 
@@ -43,3 +45,13 @@ def get_agent() -> RoverAgent:
 def get_sessions() -> SessionStore:
     """Return the session store (FastAPI dependency)."""
     return _get_components().sessions
+
+
+def get_analytics() -> AnalyticsRecorder:
+    """Return the analytics recorder (FastAPI dependency)."""
+    return _get_components().analytics
+
+
+def get_health_registry() -> HealthRegistry:
+    """Return the health registry (FastAPI dependency)."""
+    return _get_components().health

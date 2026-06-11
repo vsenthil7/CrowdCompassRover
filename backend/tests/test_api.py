@@ -68,6 +68,59 @@ async def test_chat_stream_endpoint(client):
     assert "event: done" in text
 
 
+async def test_ready_endpoint(client):
+    r = await client.get("/api/ready")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["ready"] is True
+    assert body["state"] == "healthy"
+
+
+async def test_analytics_endpoint(client):
+    await client.post("/api/search", json={"query": "halal food open now"})
+    r = await client.get("/api/analytics")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["total"] >= 1
+    assert "by_language" in body
+    assert "top_queries" in body
+
+
+async def test_routes_endpoint(client):
+    r = await client.post(
+        "/api/routes",
+        json={
+            "origin": {"lat": 40.81, "lon": -74.07},
+            "destination": {"lat": 40.758, "lon": -73.985},
+        },
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["cheapest"] is not None
+    assert body["fastest"] is not None
+    assert len(body["options"]) == 3
+
+
+async def test_routes_endpoint_explicit_modes(client):
+    r = await client.post(
+        "/api/routes",
+        json={
+            "origin": {"lat": 40.81, "lon": -74.07},
+            "destination": {"lat": 40.758, "lon": -73.985},
+            "modes": ["walk", "drive"],
+        },
+    )
+    assert r.status_code == 200
+    assert len(r.json()["options"]) == 2
+
+
+async def test_metrics_endpoint_present(client):
+    await client.get("/api/health")
+    r = await client.get("/api/metrics")
+    assert r.status_code == 200
+    assert "http_requests_total" in r.text
+
+
 async def test_get_agent_lazy_init():
     # When components not initialized, get_agent should build them on demand.
     deps._components = None
@@ -90,8 +143,18 @@ async def test_shutdown_closes_closables():
 
     from app.core.providers import Components
     from app.conversation.session import SessionStore
+    from app.analytics.recorder import AnalyticsRecorder
+    from app.health.checks import HealthRegistry
+    from app.persistence.memory import InMemoryEventRepository
 
-    deps._components = Components(agent=object(), sessions=SessionStore(), closables=[_C(), object()])
+    deps._components = Components(
+        agent=object(),
+        sessions=SessionStore(),
+        analytics=AnalyticsRecorder(),
+        events=InMemoryEventRepository(),
+        health=HealthRegistry(),
+        closables=[_C(), object()],
+    )
     await deps.shutdown_components()
     assert closed["v"] is True
     assert deps._components is None

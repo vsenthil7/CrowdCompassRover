@@ -131,3 +131,65 @@ full result payload as a JSON string.
 In real mode, transient upstream failures (Elastic MCP or Gemini) degrade gracefully: the
 agent falls back to deterministic planning/answering rather than returning an error, so
 the user always receives a usable response.
+
+---
+
+## GET `/api/ready`
+
+Readiness probe (distinct from `/health` liveness). Runs dependency health checks and
+returns **200** when ready, **503** when any critical dependency is unhealthy.
+
+```json
+{
+  "state": "healthy",
+  "ready": true,
+  "components": [
+    { "name": "search", "state": "healthy", "detail": "indices reachable", "latency_ms": 0.4 },
+    { "name": "events_repo", "state": "healthy", "detail": "16 events", "latency_ms": 0.1 }
+  ]
+}
+```
+
+## GET `/api/metrics`
+
+Prometheus text-format metrics (request counts, latency histograms, cache/circuit gauges).
+
+## GET `/api/analytics`
+
+Aggregated query analytics snapshot.
+
+```json
+{
+  "total": 42,
+  "zero_result": 3,
+  "zero_result_rate": 0.0714,
+  "by_language": { "en": 30, "es": 9, "fr": 3 },
+  "by_category": { "restaurant": 18, "transit": 11 },
+  "top_queries": [["halal food open now", 7], ["nearest transit", 5]]
+}
+```
+
+## POST `/api/routes`
+
+Compute route options between two points — the "cheapest route to the stadium now" use
+case. `modes` is optional (defaults to walk/transit/drive).
+
+**Request**
+```json
+{
+  "origin": { "lat": 40.8135, "lon": -74.0745 },
+  "destination": { "lat": 40.758, "lon": -73.985 },
+  "modes": ["walk", "transit", "drive"]
+}
+```
+
+**200 response**
+```json
+{
+  "options": [
+    { "mode": "drive", "total_distance_km": 9.7, "total_duration_min": 16.6, "estimated_cost": 12.2, "currency": "USD", "legs": [ ... ] }
+  ],
+  "cheapest": { "mode": "walk", "estimated_cost": 0.0, "...": "..." },
+  "fastest": { "mode": "drive", "total_duration_min": 16.6, "...": "..." }
+}
+```

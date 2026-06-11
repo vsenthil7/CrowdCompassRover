@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { CATEGORY_META, formatDistance, languageLabel } from "../src/lib/display";
+import { CATEGORY_META, formatCost, formatDistance, formatDuration, languageLabel, travelModeLabel } from "../src/lib/display";
 import * as api from "../src/lib/api";
 import { ApiError } from "../src/lib/api";
 
@@ -24,6 +24,22 @@ describe("display helpers", () => {
   it("maps known language codes and falls back", () => {
     expect(languageLabel("es")).toBe("Español");
     expect(languageLabel("zz")).toBe("ZZ");
+  });
+
+  it("formats travel mode labels with fallback", () => {
+    expect(travelModeLabel("walk")).toBe("Walk");
+    expect(travelModeLabel("teleport")).toBe("teleport");
+  });
+
+  it("formats cost as Free or amount", () => {
+    expect(formatCost(0, "USD")).toBe("Free");
+    expect(formatCost(2.5, "USD")).toBe("2.50 USD");
+  });
+
+  it("formats duration in minutes and hours", () => {
+    expect(formatDuration(45)).toBe("45 min");
+    expect(formatDuration(120)).toBe("2 h");
+    expect(formatDuration(90)).toBe("1 h 30 min");
   });
 });
 
@@ -73,5 +89,16 @@ describe("api client", () => {
   it("health throws on failure", async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 503 });
     await expect(api.health()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("routes posts origin/destination and returns options", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ options: [], cheapest: null, fastest: null }),
+    });
+    const res = await api.routes({ lat: 1, lon: 2 }, { lat: 3, lon: 4 }, ["walk"]);
+    expect(res.options).toEqual([]);
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse(init.body).modes).toEqual(["walk"]);
   });
 });

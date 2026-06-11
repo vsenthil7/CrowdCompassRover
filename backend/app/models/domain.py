@@ -134,3 +134,11 @@ class ChatAnswer(BaseModel):
     language: str
     citations: list[Citation]
     results: list[ScoredEvent]
+
+
+class RouteRequest(BaseModel):
+    """Inbound route-enrichment request ('cheapest route to the stadium')."""
+
+    origin: GeoPoint
+    destination: GeoPoint
+    modes: list[str] | None = Field(default=None)

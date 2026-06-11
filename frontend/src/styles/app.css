@@ -436,3 +436,98 @@ body {
   font-size: 12px;
   white-space: nowrap;
 }
+
+/* Route button on result rows */
+.row__route {
+  margin-top: 4px;
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  color: var(--amber);
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+.row__route:hover {
+  border-color: var(--amber-deep);
+}
+
+/* Route panel */
+.route-panel {
+  margin-top: 22px;
+  background: linear-gradient(180deg, var(--bg-elev), var(--bg-panel));
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--pitch);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+}
+
+.route-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.route-panel__title {
+  font-family: var(--font-display);
+  letter-spacing: 0.06em;
+  font-size: 20px;
+  color: var(--pitch);
+  margin: 0;
+}
+
+.route-panel__close {
+  background: none;
+  border: none;
+  color: var(--ink-dim);
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.route-panel__list {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.route-option {
+  display: grid;
+  grid-template-columns: 32px 90px 1fr auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.route-option__glyph {
+  font-size: 18px;
+  color: var(--amber);
+}
+
+.route-option__mode {
+  font-weight: 700;
+}
+
+.route-option__detail {
+  color: var(--ink-dim);
+  font-size: 13px;
+}
+
+.route-option__cost {
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.route-option__badge {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(45, 212, 167, 0.15);
+  color: var(--pitch);
+}

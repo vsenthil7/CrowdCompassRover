@@ -129,6 +129,41 @@ describe("useRover hook", () => {
     });
     expect(mockedApi.search).toHaveBeenCalledWith("stadium", null, 5, expect.any(String));
   });
+
+  it("routeTo fetches routes and sets routeView", async () => {
+    mockedApi.routes.mockResolvedValue({
+      options: [
+        { mode: "walk", total_distance_km: 1, total_duration_min: 12, estimated_cost: 0, currency: "USD", legs: [] },
+      ],
+      cheapest: { mode: "walk", total_distance_km: 1, total_duration_min: 12, estimated_cost: 0, currency: "USD", legs: [] },
+      fastest: { mode: "walk", total_distance_km: 1, total_duration_min: 12, estimated_cost: 0, currency: "USD", legs: [] },
+    });
+    const { result } = renderHook(() => useRover());
+    await act(async () => {
+      await result.current.routeTo(searchRes.results[0]);
+    });
+    expect(result.current.state.routeView?.destinationName).toBe("Halal Guys");
+    act(() => result.current.clearRoute());
+    expect(result.current.state.routeView).toBeNull();
+  });
+
+  it("routeTo captures errors", async () => {
+    mockedApi.routes.mockRejectedValue(new Error("route down"));
+    const { result } = renderHook(() => useRover());
+    await act(async () => {
+      await result.current.routeTo(searchRes.results[0]);
+    });
+    expect(result.current.state.error).toBe("route down");
+  });
+
+  it("routeTo handles non-Error rejection", async () => {
+    mockedApi.routes.mockRejectedValue("weird");
+    const { result } = renderHook(() => useRover());
+    await act(async () => {
+      await result.current.routeTo(searchRes.results[0]);
+    });
+    expect(result.current.state.error).toBe("Unknown error");
+  });
 });
 
 describe("App", () => {
@@ -160,6 +195,23 @@ describe("App", () => {
     await waitFor(() => expect(screen.getByTestId("history-panel")).toBeInTheDocument());
     fireEvent.click(screen.getAllByTestId("history-item")[0]);
     await waitFor(() => expect(mockedApi.search).toHaveBeenCalledTimes(2));
+  });
+
+  it("opens and closes the route panel from a result row", async () => {
+    mockedApi.routes.mockResolvedValue({
+      options: [
+        { mode: "walk", total_distance_km: 1, total_duration_min: 12, estimated_cost: 0, currency: "USD", legs: [] },
+      ],
+      cheapest: { mode: "walk", total_distance_km: 1, total_duration_min: 12, estimated_cost: 0, currency: "USD", legs: [] },
+      fastest: { mode: "walk", total_distance_km: 1, total_duration_min: 12, estimated_cost: 0, currency: "USD", legs: [] },
+    });
+    render(<App />);
+    fireEvent.click(screen.getByText("halal food open now"));
+    await waitFor(() => expect(screen.getByTestId("route-button")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("route-button"));
+    await waitFor(() => expect(screen.getByTestId("route-panel")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("route-close"));
+    await waitFor(() => expect(screen.queryByTestId("route-panel")).toBeNull());
   });
 
   it("shows empty-results state", async () => {

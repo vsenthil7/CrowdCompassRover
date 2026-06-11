@@ -15,20 +15,22 @@ Agent Builder / Gemini** (multilingual reasoning).
 
 ## Highlights
 
-- **One agent, three stages:** plan → hybrid search → grounded answer.
+- **One agent, three stages:** plan → hybrid search → grounded answer, plus route
+  enrichment for the "cheapest route to the stadium now" use case.
 - **Production concerns built in:** structured logging + Prometheus metrics, retry /
   circuit-breaker / caching resilience, rate limiting + API-key auth, RFC-7807 errors,
-  an ingestion pipeline with freshness tracking, and multi-turn conversation sessions.
+  an ingestion pipeline with freshness tracking, multi-turn conversation sessions,
+  query analytics, dependency health/readiness probes, a job scheduler, a persistence
+  repository layer, i18n, and per-environment config validation.
 - **Ranking depth:** synonym query expansion, spell tolerance, and business-signal
   reranking (open-now / proximity / capacity) on top of hybrid keyword+vector+geo search.
-- **Real + mock parity:** every integration (Elastic MCP, Gemini) has real code behind a
-  provider interface, switched by a single `APP_MODE` env var — no code change to go live.
-- **Multilingual:** English, Spanish, French, Portuguese, German, Arabic answer support;
-  any-language input.
-- **Quality bar:** backend **100%** test coverage (205 tests), frontend **100%** coverage
-  (47 tests), Playwright E2E journeys, strict TypeScript.
-- **Distinctive UI:** a "matchday departure-board" React interface with an engine-feature
-  panel and conversation history.
+- **Real + mock parity:** every integration (Elastic MCP, Gemini, Google Routes) has real
+  code behind a provider interface, switched by `APP_MODE` + credentials — no code change.
+- **Multilingual:** English, Spanish, French, Portuguese, German, Arabic answer support.
+- **Quality bar:** backend **100%** coverage (248 tests), frontend **100%** coverage
+  (64 tests), Playwright E2E journeys, strict TypeScript.
+- **Distinctive UI:** a "matchday departure-board" React interface with engine-feature
+  panel, conversation history, route options, and an error boundary.
 
 ---
 
@@ -95,6 +97,12 @@ crowdcompass-rover/
 │   │   ├── services/      hybrid ranker, mock + Elastic search, query builder,
 │   │   │                  resilient wrapper, search pipeline
 │   │   ├── ranking/       query expansion, spell tolerance, business reranker
+│   │   ├── enrichment/    route models, mock + Google Routes providers
+│   │   ├── persistence/   repository ports + in-memory adapters
+│   │   ├── analytics/     query event recorder + aggregation
+│   │   ├── health/        dependency health checks (liveness/readiness)
+│   │   ├── scheduling/    async interval scheduler
+│   │   ├── i18n/          translation catalog + translator
 │   │   ├── ingestion/     feed sources, normalizer, pipeline + freshness
 │   │   ├── conversation/  session store + multi-turn context
 │   │   ├── resilience/    retry, circuit breaker, TTL+LRU cache
@@ -102,14 +110,15 @@ crowdcompass-rover/
 │   │   ├── security/      rate limiting, API-key auth, middleware
 │   │   ├── errors/        typed exceptions + problem+json handlers
 │   │   ├── mcp/           Elastic MCP client + local mock MCP server
-│   │   ├── core/          config, embedding, geo, provider factory
+│   │   ├── core/          config, profiles, embedding, geo, provider factory
 │   │   ├── models/        domain models
 │   │   ├── data/          fixtures + seed
 │   │   └── api/           routes + DI
-│   └── tests/          205 tests @ 100% coverage
+│   └── tests/          248 tests @ 100% coverage
 ├── frontend/           Vite + React + TS UI
-│   ├── src/            components (incl. FeaturePanel, HistoryPanel), hooks, lib, styles
-│   └── tests/          47 tests @ 100% coverage
+│   ├── src/            components (Result/Plan/Answer/Feature/History/Route panels,
+│   │                   ErrorBoundary), hooks, lib, styles
+│   └── tests/          64 tests @ 100% coverage
 ├── e2e/                Playwright journeys + dual web-server config
 ├── docs/               architecture, API, user guide (+ screenshots), tracker
 ├── scripts/            screenshot snapshot generator

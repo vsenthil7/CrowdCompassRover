@@ -1,9 +1,9 @@
 """Provider factory — assembles the full agent stack from settings.
 
-This is the single composition root. ``APP_MODE`` decides mock vs real for search and LLM;
-configuration flags toggle ranking enhancements; resilience (cache/retry/breaker) and
-conversation sessions are wired here so no other module needs to know how they fit
-together.
+The single composition root. ``APP_MODE`` decides mock vs real for search, LLM, and route
+enrichment; configuration flags toggle ranking enhancements; resilience, sessions,
+analytics, route provider, and dependency health checks are wired here so no other module
+needs to know how they fit together.
 """
 from __future__ import annotations
 
@@ -14,11 +14,18 @@ from app.agent.gemini_client import GeminiClient
 from app.agent.gemini_planner import GeminiAnswerer, GeminiPlanner
 from app.agent.orchestrator import RoverAgent
 from app.agent.planner import MockPlanner, Planner
+from app.analytics.recorder import AnalyticsRecorder
 from app.conversation.session import SessionStore
 from app.core.config import Settings
 from app.data.fixtures import load_fixture_events
+from app.enrichment.google_routes import GoogleRouteProvider
+from app.enrichment.mock_routes import MockRouteProvider
+from app.enrichment.routes import RouteProvider
+from app.health.checks import ComponentHealth, HealthRegistry, HealthState
 from app.mcp.elastic_client import ElasticMCPClient
 from app.observability.metrics import get_metrics
+from app.persistence.memory import InMemoryEventRepository
+from app.persistence.repository import EventRepository
 from app.ranking.reranker import RerankWeights
 from app.ranking.spell import SpellCorrector
 from app.resilience.cache import TTLCache
@@ -33,10 +40,13 @@ from app.services.search_provider import SearchProvider
 
 @dataclass
 class Components:
-    """Constructed components plus any closables needing shutdown."""
+    """Constructed components plus collaborators and any closables."""
 
     agent: RoverAgent
     sessions: SessionStore
+    analytics: AnalyticsRecorder
+    events: EventRepository
+    health: HealthRegistry
     closables: list[object]
 
 
@@ -91,14 +101,59 @@ def build_planner_and_answerer(
     return MockPlanner(), MockAnswerer(), closables
 
 
+def build_route_provider(settings: Settings) -> tuple[RouteProvider, list[object]]:
+    """Build the route enrichment provider for the active mode."""
+    if settings.app_mode.value == "real" and settings.google_maps_api_key:
+        provider = GoogleRouteProvider(settings.google_maps_api_key)
+        return provider, [provider]
+    return MockRouteProvider(), []
+
+
+def build_health_registry(
+    settings: Settings, search: SearchProvider, events: EventRepository
+) -> HealthRegistry:
+    """Register dependency health checks."""
+    registry = HealthRegistry()
+
+    async def search_check() -> ComponentHealth:
+        await search.list_indices()
+        return ComponentHealth("search", HealthState.HEALTHY, "indices reachable")
+
+    async def repo_check() -> ComponentHealth:
+        n = await events.count()
+        return ComponentHealth("events_repo", HealthState.HEALTHY, f"{n} events")
+
+    registry.register("search", search_check)
+    registry.register("events_repo", repo_check)
+    return registry
+
+
 def build_components(settings: Settings) -> Components:
     """Assemble the full agent for the active mode."""
     base, c1 = build_base_search_provider(settings)
     resilient = wrap_resilient(base, settings)
     pipeline = build_pipeline(resilient, settings)
     planner, answerer, c2 = build_planner_and_answerer(settings)
+    routes, c3 = build_route_provider(settings)
+
     sessions = SessionStore(ttl=settings.session_ttl)
+    analytics = AnalyticsRecorder()
+    events = InMemoryEventRepository(load_fixture_events())
+    health = build_health_registry(settings, resilient, events)
+
     agent = RoverAgent(
-        planner=planner, pipeline=pipeline, answerer=answerer, sessions=sessions
+        planner=planner,
+        pipeline=pipeline,
+        answerer=answerer,
+        sessions=sessions,
+        analytics=analytics,
+        routes=routes,
     )
-    return Components(agent=agent, sessions=sessions, closables=[*c1, *c2])
+    return Components(
+        agent=agent,
+        sessions=sessions,
+        analytics=analytics,
+        events=events,
+        health=health,
+        closables=[*c1, *c2, *c3],
+    )

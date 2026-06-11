@@ -43,6 +43,16 @@ next begins.
 | S21 | Backend depth tests | Tests for all new modules, restore 100% coverage | ✅ |
 | S22 | Frontend width | Feature panel, conversation history, session continuity | ✅ |
 | S23 | Frontend depth tests | Tests for new components/hooks, restore 100% coverage | ✅ |
+| S24 | Persistence | Repository ports + in-memory event/generic adapters | ✅ |
+| S25 | Route enrichment | Route models, mock + Google Routes providers ("cheapest route") | ✅ |
+| S26 | Analytics & audit | Query event recorder + aggregation snapshots | ✅ |
+| S27 | Health & readiness | Dependency health checks, liveness vs readiness probe | ✅ |
+| S28 | Scheduling | Async interval scheduler for periodic jobs | ✅ |
+| S29 | i18n | Translation catalog + translator, answerer refactored onto it | ✅ |
+| S30 | Config profiles | Dev/staging/prod profiles + settings validation | ✅ |
+| S31 | Composition + API | Orchestrator analytics/routing, /ready /analytics /routes endpoints | ✅ |
+| S32 | Frontend width II | RoutePanel, ErrorBoundary, route button, routing hook | ✅ |
+| S33 | Backend+frontend tests | Tests for all new modules, restore 100% on both | ✅ |
 
 ---
 
@@ -159,11 +169,60 @@ build green; screenshots regenerated showing the new UI.
 
 ---
 
+## Platform Depth Expansion (v1.2.0)
+
+### S24 — Persistence ✅
+`persistence/`: `Repository` / `EventRepository` ports (hexagonal boundary) and async-safe
+in-memory adapters with bulk + by-city helpers. Real DB adapters slot in behind the same
+ports.
+
+### S25 — Route enrichment ✅
+`enrichment/`: route domain models (`RouteOption`/`RouteResult` with cheapest/fastest), a
+deterministic `MockRouteProvider` (per-mode speed/cost model from geometry), and a real
+`GoogleRouteProvider` (Routes API computeRoutes) — delivering the headline "cheapest route
+to the stadium now" use case.
+
+### S26 — Analytics & audit ✅
+`analytics/`: `AnalyticsRecorder` capturing per-query events (language, category, city,
+result count, latency) to a bounded buffer + structured log, with aggregation snapshots
+(zero-result rate, by-language/category, top queries).
+
+### S27 — Health & readiness ✅
+`health/`: `HealthRegistry` running time-bounded dependency checks concurrently, with a
+liveness (`/health`) vs readiness (`/ready`) distinction and degraded/unhealthy states.
+
+### S28 — Scheduling ✅
+`scheduling/`: async interval `Scheduler` with deterministic `run_due` plus live
+`start`/`stop`, isolating per-job failures — drives periodic ingestion refresh.
+
+### S29 — i18n ✅
+`i18n/`: centralised translation catalog + `Translator` (English fallback, formatting).
+The answerer was refactored to source all user-facing strings from it.
+
+### S30 — Config profiles ✅
+`core/profiles.py`: dev/staging/prod profiles and a settings validator returning
+structured issues (real mode without creds, prod in mock mode, prod without auth, etc.).
+
+### S31 — Composition + API ✅
+Orchestrator now records analytics and exposes `route_to`; factory wires persistence,
+analytics, routes, and health; API gains `/ready`, `/analytics`, `/routes`.
+
+### S32 — Frontend width II ✅
+`RoutePanel` (cheapest/fastest route options), `ErrorBoundary` (render-error recovery),
+a "Route here" action on result rows, and routing state in `useRover`.
+
+### S33 — Backend + frontend tests ✅
+New suites for persistence, i18n, enrichment, analytics, health, scheduling, profiles, and
+the new API endpoints; frontend tests for routing, error boundary, and helpers.
+**Backend 248 tests / Frontend 64 tests, both 100%.**
+
+---
+
 ## Coverage Ledger
 | Layer | Tool | Target | Latest |
 |-------|------|-------:|-------:|
-| Backend | pytest-cov | 100% | ✅ 100.00% (205 tests, 1497 stmts) |
-| Frontend | vitest --coverage | 100% | ✅ 100.00% (47 tests) |
+| Backend | pytest-cov | 100% | ✅ 100.00% (248 tests, 1958 stmts) |
+| Frontend | vitest --coverage | 100% | ✅ 100.00% (64 tests) |
 | E2E flows | Playwright | 100% of journeys | ✅ 8 journeys (browser run pending CDN access; flows validated via live API) |
 
 ## Access Ledger (live)

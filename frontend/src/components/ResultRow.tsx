@@ -4,9 +4,10 @@ import { CATEGORY_META, formatDistance } from "../lib/display";
 interface Props {
   hit: ScoredEvent;
   index: number;
+  onRoute?: (hit: ScoredEvent) => void;
 }
 
-export function ResultRow({ hit, index }: Props) {
+export function ResultRow({ hit, index, onRoute }: Props) {
   const meta = CATEGORY_META[hit.event.category];
   const dist = formatDistance(hit.distance_km);
   return (
@@ -28,6 +29,15 @@ export function ResultRow({ hit, index }: Props) {
           {hit.event.open_now ? "Open" : "Closed"}
         </span>
         {dist ? <span className="row__dist">{dist}</span> : null}
+        {onRoute ? (
+          <button
+            className="row__route"
+            onClick={() => onRoute(hit)}
+            data-testid="route-button"
+          >
+            Route here
+          </button>
+        ) : null}
       </div>
     </article>
   );
