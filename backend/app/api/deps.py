@@ -146,6 +146,11 @@ def get_relevance():
     return _get_components().relevance
 
 
+def get_cms():
+    """Return the CMS content store (FastAPI dependency)."""
+    return _get_components().cms
+
+
 def get_tenants():
     """Return the tenant resolver (FastAPI dependency)."""
     return _get_components().tenants

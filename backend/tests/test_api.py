@@ -503,6 +503,7 @@ async def test_shutdown_closes_closables():
         slo=SloTracker(),
         availability=AvailabilityService(),
         relevance=__import__("app.admin.relevance", fromlist=["RelevanceConfigStore"]).RelevanceConfigStore(),
+        cms=__import__("app.cms.store", fromlist=["CmsStore"]).CmsStore(),
         closables=[_C(), object()],
     )
     await deps.shutdown_components()
@@ -555,4 +556,33 @@ async def test_analytics_intents_endpoint(admin_client):
 
 async def test_analytics_intents_forbidden_for_anonymous(client):
     r = await client.get("/api/analytics/intents")
+    assert r.status_code == 403
+
+
+async def test_cms_translation_roundtrip(admin_client):
+    # Matches the playbook done-criterion: PUT Arabic translation -> stored: true.
+    r = await admin_client.put(
+        "/api/cms/venues/v1/translations/ar",
+        json={"name": "ملعب", "description": "المكان الرئيسي"},
+    )
+    assert r.status_code == 200
+    assert r.json()["stored"] is True
+
+    r = await admin_client.get("/api/cms/venues/v1/translations")
+    assert r.status_code == 200
+    body = r.json()
+    assert "ar" in body["locales"]
+    assert body["translations"]["ar"]["name"] == "ملعب"
+
+
+async def test_cms_unsupported_locale_422(admin_client):
+    r = await admin_client.put(
+        "/api/cms/venues/v1/translations/zz",
+        json={"name": "x"},
+    )
+    assert r.status_code == 422
+
+
+async def test_cms_put_forbidden_for_anonymous(client):
+    r = await client.put("/api/cms/venues/v1/translations/ar", json={"name": "x"})
     assert r.status_code == 403

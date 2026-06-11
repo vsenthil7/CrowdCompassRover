@@ -76,6 +76,10 @@ class SavedSearchService:
         del prefix
         return result
 
+    async def list_all_searches(self) -> list[SavedSearch]:
+        """Return all saved searches across owners (alerter/admin use)."""
+        return [entry.value for entry in await self._repo.list_values()]
+
     async def count(self) -> int:
         """Total saved searches across owners."""
         return await self._repo.count()

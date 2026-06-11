@@ -20,7 +20,7 @@ export function SearchControls({
   onExample,
 }: Props) {
   return (
-    <div>
+    <div role="search" aria-label="Venue and event search">
       <div className="searchbar">
         <input
           aria-label="Ask in any language"

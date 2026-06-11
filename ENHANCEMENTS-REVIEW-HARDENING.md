@@ -109,3 +109,37 @@ P5.S2 / C2 (Secret Manager), C5 (load test), C6 (DR/backup), C7 (PagerDuty/Slack
 Section-7 "definition of done" items that require `docker compose up`, `gcloud run`,
 `APP_MODE=real` passes, or a CI runner. The Dockerfiles, compose, CI, runbook, and SBOM
 tooling above are exactly what those steps consume once an environment exists.
+
+---
+
+## Round 3 — Remaining sandbox-feasible width modules
+
+This round closed every remaining playbook step that needs no live cloud/credentials:
+
+- **P4.S1** persistence/Redis/GCP/residency settings.
+- **P6.S7** geofence ray-casting point-in-polygon + per-tenant registry.
+- **P6.S11 / P7.S3** A/B answer-quality eval framework (models, registry, runner; judge
+  optional, fully usable in mock mode).
+- **P6.S3 / P7.S4** relevance-tuning config + injectable store + `GET`/`PUT
+  /admin/relevance/weights` (feeds the RRF query builder's tunable weights).
+- **P6.S5** OIDC/JWT resolver (JWKS injectable; offline-tested with a self-signed RS256 key).
+- **P6.S8** partner connector framework (spec/status, REST connector with injectable
+  transport, `map_record` normaliser, per-tenant registry).
+- **P6.S10 / P7.S2** intent analytics over the real event log + `GET /analytics/intents`.
+- **P1.S4** Cloud Run `service.yaml` + `cloudbuild.yaml` (Secret Manager refs, no plaintext).
+- **P6.S4** saved-search alerter (diff open_now results, fire `saved_search.alert` webhook).
+- **P6.S9 / P7.S1** multilingual CMS store + admin API (6 real locales).
+- **P6.S6** WCAG 2.2 AA ARIA remediation + `@axe-core/playwright` accessibility spec.
+
+**Backend 565 -> 641 tests, still 100% coverage. Frontend 174 @ 100%, build clean.**
+
+### Honest final status: 26 of 38 playbook steps complete
+The remaining 12 require a real environment to *execute/verify* and cannot be truthfully
+ticked in this sandbox: **P2.S2** (seed a live Elastic cluster), **P2.S4** (live
+Elastic+Gemini integration tests), **P4.S2** (Firestore repo), **P4.S3** (wire durable
+adapters), **P4.S4** (Redis-backed limiter/quotas), **P5.S2 / C2** (GCP Secret Manager),
+**C5** (load test), **C6** (DR/backup), **C7** (PagerDuty/Slack), and the Section-7
+"Definition of Done" checklist (needs `docker compose up`, `gcloud run`, `APP_MODE=real`
+passes, and a CI runner). The Dockerfiles, compose, Cloud Run YAML, CI workflow, runbook, and
+SBOM tooling already in the repo are exactly what those steps consume once credentials and a
+deploy target exist.

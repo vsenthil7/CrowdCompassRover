@@ -34,6 +34,7 @@ from app.core.config import Settings
 from app.data.fixtures import load_fixture_events
 from app.availability.seed import seed_availability
 from app.admin.relevance import RelevanceConfigStore
+from app.cms.store import CmsStore
 from app.availability.service import AvailabilityService
 from app.enrichment.google_routes import GoogleRouteProvider
 from app.enrichment.mock_routes import MockRouteProvider
@@ -96,6 +97,7 @@ class Components:
     slo: "SloTracker"
     availability: "AvailabilityService"
     relevance: "RelevanceConfigStore"
+    cms: "CmsStore"
     closables: list[object]
 
 
@@ -402,5 +404,6 @@ def build_components(settings: Settings) -> Components:
         slo=slo,
         availability=seed_availability(load_fixture_events()),
         relevance=RelevanceConfigStore(),
+        cms=CmsStore(),
         closables=[*c1, *c2, *c3],
     )

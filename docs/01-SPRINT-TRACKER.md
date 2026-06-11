@@ -99,6 +99,7 @@ next begins.
 | S77 | Deploy + integration artifacts | MCP put_mapping/bulk_index/count; RRF hybrid query (open_now boost, tunable weights); Dockerfiles + compose; runbook; enhanced CI; SBOM/Makefile | ✅ |
 | S78 | Width modules (no-infra) | Persistence/Redis/GCP settings (P4.S1); geofence point-in-polygon (P6.S7); A/B answer-quality eval framework (P6.S11/P7.S3); relevance-tuning weights + admin API (P6.S3/P7.S4) | ✅ |
 | S79 | More width modules + deploy YAML | OIDC/JWT resolver (P6.S5); partner connector framework (P6.S8); intent analytics + API (P6.S10/P7.S2); Cloud Run service.yaml + cloudbuild.yaml (P1.S4) | ✅ |
+| S80 | Alerter, CMS, accessibility | Saved-search alerter (P6.S4); multilingual CMS store + API (P6.S9/P7.S1); WCAG 2.2 AA ARIA remediation + axe spec (P6.S6) | ✅ |
 
 ---
 
@@ -614,14 +615,33 @@ fully covered; deploy/CI/runbook are artifacts validated structurally.
 
 **Backend 622 / Frontend 174 tests, both 100%.**
 
+### S80 — Saved-search alerter, multilingual CMS, accessibility (Perplexity P6.S4, P6.S9/P7.S1, P6.S6) ✅
+- **P6.S4** — `notifications/saved_search_alerter.py`: re-runs saved searches, diffs the
+  open_now result set against the last snapshot, dispatches a `saved_search.alert` webhook on
+  new matches (first cycle baselines, second fires). `SavedSearchService.list_all_searches()`
+  added. Core `poll_once` plus `start`/`stop` lifecycle tested directly.
+- **P6.S9 / P7.S1** — `app/cms/`: `VenueTranslation`/`VenueContent` models, a `CmsStore`
+  validating against the real 6 supported locales (en/es/pt/fr/de/ar), wired into `Components`
+  with `GET /cms/venues/{id}/translations` (VIEW_ANALYTICS) and
+  `PUT /cms/venues/{id}/translations/{locale}` (ADMIN_REINDEX; unsupported locale -> 422;
+  Arabic round-trip returns `stored: true`).
+- **P6.S6** — WCAG 2.2 AA: `role="search"` on the search region, `role="status"
+  aria-live="polite"` on the streaming answer, per-result `aria-label` on `ResultRow`; added
+  `@axe-core/playwright` + `axe-core` dev deps and `e2e/tests/accessibility.spec.ts` (audits
+  home + post-search, asserts zero serious/critical violations). ARIA changes verified not to
+  regress the 174 frontend tests or the build; the axe run is browser-gated in this sandbox
+  (Chromium binary unavailable) exactly like the J1-J8 journeys, and runs in CI.
+
+**Backend 641 / Frontend 174 tests, both 100%.**
+
 ---
 
 ## Coverage Ledger
 | Layer | Tool | Target | Latest |
 |-------|------|-------:|-------:|
-| Backend | pytest-cov | 100% | ✅ 100.00% (622 tests, 4291 stmts) |
+| Backend | pytest-cov | 100% | ✅ 100.00% (641 tests, 4407 stmts) |
 | Frontend | vitest --coverage | 100% | ✅ 100.00% (174 tests) |
-| E2E flows | Playwright | 100% of journeys | ✅ 8 journeys (browser run pending CDN access; flows validated via live API) |
+| E2E flows | Playwright | journeys + a11y | ✅ 8 journeys + accessibility spec (browser run gated in sandbox; runs in CI) |
 
 ## Access Ledger (live)
 | System | Needed by sprint | Status |

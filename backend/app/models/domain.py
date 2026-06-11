@@ -145,6 +145,14 @@ class RelevanceWeightsRequest(BaseModel):
     rerank_open_now: float = Field(default=0.5, ge=0.0, le=2.0)
 
 
+class CmsTranslationIn(BaseModel):
+    """A locale variant of a venue's CMS content."""
+
+    name: str = Field(min_length=1, max_length=256)
+    description: str = Field(default="", max_length=2000)
+    tags: list[str] = Field(default_factory=list, max_length=30)
+
+
 class ChatRequest(BaseModel):
     """Inbound conversational request (answer is grounded in search results)."""
 

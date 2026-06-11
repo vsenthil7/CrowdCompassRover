@@ -13,7 +13,7 @@ export function ResultRow({ hit, index, onRoute, availability }: Props) {
   const meta = CATEGORY_META[hit.event.category];
   const dist = formatDistance(hit.distance_km);
   return (
-    <article className="row" style={{ animationDelay: `${index * 60}ms` }} data-testid="result-row">
+    <article className="row" style={{ animationDelay: `${index * 60}ms` }} data-testid="result-row" aria-label={`Result: ${hit.event.name}`}>
       <div className="row__glyph" aria-hidden="true">
         {meta.glyph}
       </div>

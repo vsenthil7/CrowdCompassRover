@@ -85,6 +85,16 @@ async def test_saved_search_isolation_between_owners():
     assert await svc.get("owner2", "id1") is None
 
 
+async def test_list_all_searches_across_owners():
+    ids = iter(["a", "b"])
+    svc = SavedSearchService(id_factory=lambda: next(ids))
+    await svc.save("owner1", "q1", "l1")
+    await svc.save("owner2", "q2", "l2")
+    all_searches = await svc.list_all_searches()
+    assert {s.owner for s in all_searches} == {"owner1", "owner2"}
+    assert len(all_searches) == 2
+
+
 def test_saved_search_dataclass():
     s = SavedSearch(id="i", owner="o", query="q", label="l", created_at=1.0)
     assert s.tags == []

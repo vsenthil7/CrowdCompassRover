@@ -34,6 +34,7 @@ from app.api.deps import (
     get_principal,
     get_policy,
     get_relevance,
+    get_cms,
 )
 from app.authz.policy import PolicyEngine
 from app.authz.rbac import Permission, Principal
@@ -48,6 +49,7 @@ from app.models.domain import (
     ChatAnswer,
     ChatRequest,
     LiveSignalIn,
+    CmsTranslationIn,
     RelevanceWeightsRequest,
     RouteRequest,
     SavedSearchRequest,
@@ -535,6 +537,52 @@ async def set_relevance_weights(
     except ValueError as exc:
         raise ValidationError(str(exc)) from exc
     return updated.to_dict()
+
+
+@router.get("/cms/venues/{venue_id}/translations")
+async def cms_get_translations(
+    venue_id: str,
+    cms=Depends(get_cms),
+    principal: Principal = Depends(get_principal),
+    policy: PolicyEngine = Depends(get_policy),
+) -> dict:
+    """Return all locale translations stored for a venue."""
+    policy.require(principal, Permission.VIEW_ANALYTICS)
+    translations = cms.get_translations(venue_id)
+    return {
+        "venue_id": venue_id,
+        "locales": sorted(translations.keys()),
+        "translations": {loc: t.to_dict() for loc, t in translations.items()},
+    }
+
+
+@router.put("/cms/venues/{venue_id}/translations/{locale}")
+async def cms_put_translation(
+    venue_id: str,
+    locale: str,
+    body: CmsTranslationIn,
+    cms=Depends(get_cms),
+    principal: Principal = Depends(get_principal),
+    policy: PolicyEngine = Depends(get_policy),
+) -> dict:
+    """Create or update a venue's content for a locale (admin only)."""
+    policy.require(principal, Permission.ADMIN_REINDEX)
+    from app.cms.models import VenueTranslation
+    from app.cms.store import CmsError
+
+    try:
+        cms.upsert_translation(
+            VenueTranslation(
+                venue_id=venue_id,
+                locale=locale,
+                name=body.name,
+                description=body.description,
+                tags=body.tags,
+            )
+        )
+    except CmsError as exc:
+        raise ValidationError(str(exc)) from exc
+    return {"stored": True, "venue_id": venue_id, "locale": locale}
 
 
 @router.get("/availability/{venue_id}")
