@@ -91,6 +91,7 @@ next begins.
 | S69 | Wiring: bulkhead + SLO | Bulkhead fronts search/chat; SLO records failures | ✅ |
 | S70 | Tenant scoped store | Structural per-tenant data partitioning | ✅ |
 | S71 | Frontend outbox panel | OutboxPanel + relay action; integration tests; 100% | ✅ |
+| S72 | Operator observability UI | Surface analytics/traces/flags/readiness/bulkhead/retention into the ops dashboard | ✅ |
 
 ---
 
@@ -451,13 +452,36 @@ wired into the admin dashboard; `useAdmin` gained outbox state + `relayOutbox`. 
 integration tests for the bridge, sink, scoped store, and wired orchestrator behaviour.
 **Backend 436 / Frontend 130 tests, both 100%.**
 
+### S72 — Operator observability UI ✅
+**Gap found:** the backend exposed 30 endpoints but the frontend surfaced only ~13 — a
+cluster of built, tested, but UI-invisible capabilities (the same "exists but not
+load-bearing in the UI" pattern hardened against in S68–S71). This sprint surfaced the
+remaining operator-facing depth into the ops dashboard.
+
+- **API client + types:** `analytics`, `traces`, `flags`, `readiness`, `bulkheadStats`,
+  `sweepRetention` (typed against the real endpoint shapes; `/ready` reads its body on both
+  200 and 503).
+- **Five modular panels:** `AnalyticsPanel` (volume, zero-result rate, language/category
+  breakdowns, top queries), `TracesPanel` (recent spans, parent-indented, cycle-guarded),
+  `FlagsPanel` (evaluated feature flags), `HealthPanel` (per-dependency readiness),
+  `BulkheadPanel` (concurrency utilisation with saturation states).
+- **Hook + dashboard:** `useAdmin` loads all five surfaces in its `refresh` fan-out and adds
+  a `sweepRetention` action; `AdminDashboard` renders the new sections and a "Sweep
+  retention" control.
+- **Tests:** new `observability-panels.test.tsx` (all branches incl. empty states, each
+  severity class, cyclic-trace guard), extended `lib.test.ts` (6 new client methods incl.
+  the 503 readiness path) and `admin.test.tsx` (populated-dashboard render + sweep action +
+  hook fan-out and error paths).
+
+**Backend 436 / Frontend 156 tests, both 100%.** Backend untouched; production build clean.
+
 ---
 
 ## Coverage Ledger
 | Layer | Tool | Target | Latest |
 |-------|------|-------:|-------:|
 | Backend | pytest-cov | 100% | ✅ 100.00% (436 tests, 3472 stmts) |
-| Frontend | vitest --coverage | 100% | ✅ 100.00% (130 tests) |
+| Frontend | vitest --coverage | 100% | ✅ 100.00% (156 tests) |
 | E2E flows | Playwright | 100% of journeys | ✅ 8 journeys (browser run pending CDN access; flows validated via live API) |
 
 ## Access Ledger (live)

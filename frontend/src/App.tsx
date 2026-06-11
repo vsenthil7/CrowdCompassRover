@@ -73,6 +73,11 @@ export function App() {
             slo={admin.state.slo}
             version={admin.state.version}
             outbox={admin.state.outbox}
+            analytics={admin.state.analytics}
+            traces={admin.state.traces}
+            flags={admin.state.flags}
+            readiness={admin.state.readiness}
+            bulkhead={admin.state.bulkhead}
             loading={admin.state.loading}
             busy={admin.state.busy}
             error={admin.state.error}
@@ -80,6 +85,7 @@ export function App() {
             onReindex={admin.reindex}
             onFlush={admin.flushCache}
             onRelay={admin.relayOutbox}
+            onSweepRetention={admin.sweepRetention}
           />
         ) : null}
 

@@ -187,3 +187,58 @@ export interface RouteResponse {
   cheapest: RouteOption | null;
   fastest: RouteOption | null;
 }
+
+// --- Operator observability surfaces (analytics, traces, flags, health, bulkhead) ---
+
+export interface AnalyticsSnapshot {
+  total: number;
+  zero_result: number;
+  zero_result_rate: number;
+  by_language: Record<string, number>;
+  by_category: Record<string, number>;
+  top_queries: [string, number][];
+}
+
+export interface TraceSpan {
+  trace_id: string;
+  span_id: string;
+  parent_id: string | null;
+  name: string;
+  duration_ms: number;
+  status: string;
+  attributes: Record<string, unknown>;
+}
+
+export interface TracesReport {
+  spans: TraceSpan[];
+}
+
+export interface FlagsReport {
+  flags: Record<string, boolean>;
+}
+
+export interface ComponentHealth {
+  name: string;
+  state: string;
+  detail: string;
+  latency_ms: number;
+}
+
+export interface ReadinessReport {
+  state: string;
+  ready: boolean;
+  components: ComponentHealth[];
+}
+
+export interface BulkheadStats {
+  name: string;
+  max_concurrent: number;
+  active: number;
+  queued: number;
+  max_queue?: number;
+  rejected?: number;
+}
+
+export interface RetentionSweepResult {
+  swept: { name: string; removed: number }[];
+}

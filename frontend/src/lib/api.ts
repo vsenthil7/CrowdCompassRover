@@ -1,15 +1,21 @@
 import type {
   AdminStatus,
+  AnalyticsSnapshot,
   AuditReport,
+  BulkheadStats,
   ChatAnswer,
+  FlagsReport,
   GeoPoint,
   HealthStatus,
   OutboxStats,
+  ReadinessReport,
   RelayResult,
+  RetentionSweepResult,
   RouteResponse,
   SavedSearch,
   SearchResponse,
   SloReport,
+  TracesReport,
   UsageInfo,
   VersionInfo,
 } from "./types";
@@ -142,4 +148,33 @@ export async function routes(
     destination,
     modes,
   });
+}
+
+// --- Operator observability endpoints (analytics, traces, flags, readiness, bulkhead) ---
+
+export async function analytics(): Promise<AnalyticsSnapshot> {
+  return getJson<AnalyticsSnapshot>("/analytics");
+}
+
+export async function traces(): Promise<TracesReport> {
+  return getJson<TracesReport>("/traces");
+}
+
+export async function flags(): Promise<FlagsReport> {
+  return getJson<FlagsReport>("/flags");
+}
+
+export async function readiness(): Promise<ReadinessReport> {
+  // /ready returns 200 when ready and 503 when not — both carry a JSON body we
+  // want to render, so we read the body regardless of status.
+  const res = await fetch(`${BASE}/ready`);
+  return (await res.json()) as ReadinessReport;
+}
+
+export async function bulkheadStats(): Promise<BulkheadStats> {
+  return getJson<BulkheadStats>("/admin/bulkhead");
+}
+
+export async function sweepRetention(): Promise<RetentionSweepResult> {
+  return postJson<RetentionSweepResult>("/admin/retention/sweep", {});
 }

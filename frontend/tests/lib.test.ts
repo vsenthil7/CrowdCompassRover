@@ -203,4 +203,47 @@ describe("api client", () => {
     const r = await api.outboxRelay();
     expect(r.delivered).toBe(1);
   });
+
+  it("analytics fetches a snapshot", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ total: 5, zero_result: 1, zero_result_rate: 0.2, by_language: {}, by_category: {}, top_queries: [] }),
+    });
+    const a = await api.analytics();
+    expect(a.total).toBe(5);
+  });
+
+  it("traces fetches spans", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ spans: [] }) });
+    const t = await api.traces();
+    expect(t.spans).toEqual([]);
+  });
+
+  it("flags fetches evaluated flags", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ flags: { x: true } }) });
+    const f = await api.flags();
+    expect(f.flags.x).toBe(true);
+  });
+
+  it("readiness reads the body regardless of status code", async () => {
+    // 503 (not ready) still carries a JSON body we render.
+    fetchMock.mockResolvedValue({ ok: false, status: 503, json: async () => ({ state: "degraded", ready: false, components: [] }) });
+    const r = await api.readiness();
+    expect(r.ready).toBe(false);
+  });
+
+  it("bulkheadStats fetches utilisation", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ name: "search", max_concurrent: 16, active: 1, queued: 0, rejected: 0 }),
+    });
+    const b = await api.bulkheadStats();
+    expect(b.name).toBe("search");
+  });
+
+  it("sweepRetention posts", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ swept: [{ name: "analytics", removed: 2 }] }) });
+    const s = await api.sweepRetention();
+    expect(s.swept[0].removed).toBe(2);
+  });
 });

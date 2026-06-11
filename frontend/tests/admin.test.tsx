@@ -61,6 +61,7 @@ describe("AdminDashboard", () => {
         version={null}
         outbox={null}
         onRelay={() => {}}
+        onSweepRetention={() => {}}
         loading={false}
         busy={false}
         error={null}
@@ -73,6 +74,47 @@ describe("AdminDashboard", () => {
     expect(screen.getByTestId("usage-view")).toBeInTheDocument();
     expect(screen.getByTestId("audit-integrity")).toHaveTextContent("verified");
     expect(screen.getAllByTestId("audit-row").length).toBeGreaterThan(0);
+  });
+
+  it("renders the observability panels and fires the retention sweep", () => {
+    const onSweep = vi.fn();
+    render(
+      <AdminDashboard
+        status={status}
+        usage={null}
+        audit={null}
+        slo={null}
+        version={null}
+        outbox={null}
+        analytics={{
+          total: 9, zero_result: 1, zero_result_rate: 0.11,
+          by_language: { en: 9 }, by_category: { stadium: 9 }, top_queries: [["x", 3]],
+        }}
+        traces={{ spans: [
+          { trace_id: "t", span_id: "s", parent_id: null, name: "search", duration_ms: 5, status: "ok", attributes: {} },
+        ] }}
+        flags={{ flags: { new_ranker: true } }}
+        readiness={{ state: "ready", ready: true, components: [
+          { name: "elastic", state: "healthy", detail: "ok", latency_ms: 3 },
+        ] }}
+        bulkhead={{ name: "search", max_concurrent: 16, active: 1, queued: 0, rejected: 0 }}
+        onRelay={() => {}}
+        onSweepRetention={onSweep}
+        loading={false}
+        busy={false}
+        error={null}
+        onRefresh={() => {}}
+        onReindex={() => {}}
+        onFlush={() => {}}
+      />,
+    );
+    expect(screen.getByTestId("admin-analytics")).toBeInTheDocument();
+    expect(screen.getByTestId("admin-traces")).toBeInTheDocument();
+    expect(screen.getByTestId("admin-flags")).toBeInTheDocument();
+    expect(screen.getByTestId("admin-health")).toBeInTheDocument();
+    expect(screen.getByTestId("admin-bulkhead")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("admin-sweep"));
+    expect(onSweep).toHaveBeenCalled();
   });
 
   it("renders SLO panel and version badge when present", () => {
@@ -89,6 +131,7 @@ describe("AdminDashboard", () => {
         version={{ current: "v1", supported: ["v1"] }}
         outbox={null}
         onRelay={() => {}}
+        onSweepRetention={() => {}}
         loading={false}
         busy={false}
         error={null}
@@ -125,6 +168,7 @@ describe("AdminDashboard", () => {
         onReindex={() => {}}
         onFlush={() => {}}
         onRelay={onRelay}
+        onSweepRetention={() => {}}
       />,
     );
     expect(screen.getByTestId("outbox-panel")).toBeInTheDocument();
@@ -153,6 +197,7 @@ describe("AdminDashboard", () => {
         onReindex={() => {}}
         onFlush={() => {}}
         onRelay={() => {}}
+        onSweepRetention={() => {}}
       />,
     );
     expect(screen.queryByTestId("outbox-dead-list")).toBeNull();
@@ -169,6 +214,7 @@ describe("AdminDashboard", () => {
         version={null}
         outbox={null}
         onRelay={() => {}}
+        onSweepRetention={() => {}}
         loading={false}
         busy={false}
         error={null}
@@ -191,6 +237,7 @@ describe("AdminDashboard", () => {
         version={null}
         outbox={null}
         onRelay={() => {}}
+        onSweepRetention={() => {}}
         loading={true}
         busy={false}
         error="boom"
@@ -215,6 +262,7 @@ describe("AdminDashboard", () => {
         version={null}
         outbox={null}
         onRelay={() => {}}
+        onSweepRetention={() => {}}
         loading={false}
         busy={false}
         error={null}
@@ -240,6 +288,7 @@ describe("AdminDashboard", () => {
         version={null}
         outbox={null}
         onRelay={() => {}}
+        onSweepRetention={() => {}}
         loading={false}
         busy={false}
         error={null}
@@ -261,6 +310,7 @@ describe("AdminDashboard", () => {
         version={null}
         outbox={null}
         onRelay={() => {}}
+        onSweepRetention={() => {}}
         loading={false}
         busy={true}
         error={null}
@@ -289,6 +339,17 @@ describe("useAdmin", () => {
     mockedApi.outboxRelay = vi.fn().mockResolvedValue({ delivered: 0, failed: 0, dead: 0 });
     mockedApi.reindex = vi.fn().mockResolvedValue({ indexed: 16, healthy: true });
     mockedApi.flushCache = vi.fn().mockResolvedValue({ flushed: true });
+    mockedApi.analytics = vi.fn().mockResolvedValue({
+      total: 5, zero_result: 1, zero_result_rate: 0.2,
+      by_language: { en: 5 }, by_category: { stadium: 5 }, top_queries: [["x", 2]],
+    });
+    mockedApi.traces = vi.fn().mockResolvedValue({ spans: [] });
+    mockedApi.flags = vi.fn().mockResolvedValue({ flags: { new_ranker: true } });
+    mockedApi.readiness = vi.fn().mockResolvedValue({ state: "ready", ready: true, components: [] });
+    mockedApi.bulkheadStats = vi.fn().mockResolvedValue({
+      name: "search", max_concurrent: 16, active: 0, queued: 0, rejected: 0,
+    });
+    mockedApi.sweepRetention = vi.fn().mockResolvedValue({ swept: [{ name: "analytics", removed: 0 }] });
   });
 
   it("refresh loads status, usage, audit", async () => {
@@ -302,6 +363,29 @@ describe("useAdmin", () => {
     expect(result.current.state.slo).not.toBeNull();
     expect(result.current.state.version?.current).toBe("v1");
     expect(result.current.state.outbox).not.toBeNull();
+    expect(result.current.state.analytics?.total).toBe(5);
+    expect(result.current.state.traces).not.toBeNull();
+    expect(result.current.state.flags?.flags.new_ranker).toBe(true);
+    expect(result.current.state.readiness?.ready).toBe(true);
+    expect(result.current.state.bulkhead?.name).toBe("search");
+  });
+
+  it("sweepRetention sweeps then refreshes", async () => {
+    const { result } = renderHook(() => useAdmin());
+    await act(async () => {
+      await result.current.sweepRetention();
+    });
+    expect(mockedApi.sweepRetention).toHaveBeenCalled();
+    expect(mockedApi.adminStatus).toHaveBeenCalled();
+  });
+
+  it("sweepRetention captures errors", async () => {
+    mockedApi.sweepRetention = vi.fn().mockRejectedValue(new Error("sweep fail"));
+    const { result } = renderHook(() => useAdmin());
+    await act(async () => {
+      await result.current.sweepRetention();
+    });
+    expect(result.current.state.error).toBe("sweep fail");
   });
 
   it("relayOutbox relays then refreshes", async () => {

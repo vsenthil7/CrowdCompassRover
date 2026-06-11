@@ -1,8 +1,24 @@
-import type { AdminStatus, AuditReport, OutboxStats, SloReport, VersionInfo } from "../lib/types";
+import type {
+  AdminStatus,
+  AnalyticsSnapshot,
+  AuditReport,
+  BulkheadStats,
+  FlagsReport,
+  OutboxStats,
+  ReadinessReport,
+  SloReport,
+  TracesReport,
+  VersionInfo,
+} from "../lib/types";
 import { UsageView } from "./UsageView";
 import { SloPanel } from "./SloPanel";
 import { VersionBadge } from "./VersionBadge";
 import { OutboxPanel } from "./OutboxPanel";
+import { AnalyticsPanel } from "./AnalyticsPanel";
+import { TracesPanel } from "./TracesPanel";
+import { FlagsPanel } from "./FlagsPanel";
+import { HealthPanel } from "./HealthPanel";
+import { BulkheadPanel } from "./BulkheadPanel";
 import { formatAge, formatPercent, onActivate } from "../lib/a11y";
 import type { UsageInfo } from "../lib/types";
 
@@ -13,6 +29,11 @@ interface Props {
   slo: SloReport | null;
   version: VersionInfo | null;
   outbox: OutboxStats | null;
+  analytics?: AnalyticsSnapshot | null;
+  traces?: TracesReport | null;
+  flags?: FlagsReport | null;
+  readiness?: ReadinessReport | null;
+  bulkhead?: BulkheadStats | null;
   loading: boolean;
   busy: boolean;
   error: string | null;
@@ -20,6 +41,7 @@ interface Props {
   onReindex: () => void;
   onFlush: () => void;
   onRelay: () => void;
+  onSweepRetention: () => void;
 }
 
 export function AdminDashboard({
@@ -29,6 +51,11 @@ export function AdminDashboard({
   slo,
   version,
   outbox,
+  analytics = null,
+  traces = null,
+  flags = null,
+  readiness = null,
+  bulkhead = null,
   loading,
   busy,
   error,
@@ -36,6 +63,7 @@ export function AdminDashboard({
   onReindex,
   onFlush,
   onRelay,
+  onSweepRetention,
 }: Props) {
   return (
     <section className="admin" data-testid="admin-dashboard" aria-label="Admin dashboard">
@@ -93,6 +121,41 @@ export function AdminDashboard({
         </div>
       ) : null}
 
+      {readiness ? (
+        <div className="admin__section" data-testid="admin-health">
+          <h3 className="admin__subtitle">Dependency readiness</h3>
+          <HealthPanel readiness={readiness} />
+        </div>
+      ) : null}
+
+      {bulkhead ? (
+        <div className="admin__section" data-testid="admin-bulkhead">
+          <h3 className="admin__subtitle">Concurrency</h3>
+          <BulkheadPanel bulkhead={bulkhead} />
+        </div>
+      ) : null}
+
+      {analytics ? (
+        <div className="admin__section" data-testid="admin-analytics">
+          <h3 className="admin__subtitle">Query analytics</h3>
+          <AnalyticsPanel analytics={analytics} />
+        </div>
+      ) : null}
+
+      {flags ? (
+        <div className="admin__section" data-testid="admin-flags">
+          <h3 className="admin__subtitle">Feature flags</h3>
+          <FlagsPanel flags={flags} />
+        </div>
+      ) : null}
+
+      {traces ? (
+        <div className="admin__section" data-testid="admin-traces">
+          <h3 className="admin__subtitle">Recent traces</h3>
+          <TracesPanel traces={traces} />
+        </div>
+      ) : null}
+
       {outbox ? <OutboxPanel outbox={outbox} onRelay={onRelay} busy={busy} /> : null}
 
       <div className="admin__actions">
@@ -101,6 +164,9 @@ export function AdminDashboard({
         </button>
         <button className="btn btn--ghost" onClick={onFlush} disabled={busy} data-testid="admin-flush">
           Flush cache
+        </button>
+        <button className="btn btn--ghost" onClick={onSweepRetention} disabled={busy} data-testid="admin-sweep">
+          Sweep retention
         </button>
       </div>
 
