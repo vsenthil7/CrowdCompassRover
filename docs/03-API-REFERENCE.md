@@ -240,3 +240,39 @@ Most recent spans (for debugging): `trace_id`, `span_id`, `parent_id`, `name`,
 - `POST /api/admin/reindex` — re-run ingestion into the event repository.
 
 These are protected by API-key auth when keys are configured.
+
+---
+
+## Governance & ops endpoints (v1.4.0)
+
+### GET `/api/audit`
+Recent audit entries plus chain-integrity status: `{ "verified": true, "count": N,
+"entries": [ { seq, actor, tenant, action, resource, outcome, ts } ] }`.
+
+### POST `/api/webhooks`
+Register a subscriber. Body `{ tenant, url, secret (≥8 chars), events: [..] }` →
+`{ id, events }`. Deliveries are HMAC-SHA256 signed (`X-CC-Signature: sha256=...`).
+
+### DELETE `/api/webhooks/{id}`
+Remove a subscription (404 problem if unknown).
+
+### GET `/api/usage/{tenant}`
+Current-period usage: `{ tenant, period, count, by_action, remaining, quota }`. Exceeding
+quota elsewhere yields a 429 `quota_exceeded` problem.
+
+### GET `/api/gdpr/export/{subject}`
+Export a subject's data: `{ subject, sessions, saved_searches, audit_entries }`.
+
+### DELETE `/api/gdpr/{subject}`
+Purge a subject's sessions and saved searches: `{ subject, sessions_removed,
+saved_searches_removed }`.
+
+### POST `/api/admin/reindex` — idempotency
+Supply an `Idempotency-Key` header to make retries safe; a replay returns the prior result
+with `"idempotent_replay": true`.
+
+### Authorization model
+Requests resolve to a principal (anonymous unless an API key maps to one). Built-in roles:
+**visitor** (search/chat/route/save), **analyst** (+analytics/traces), **admin** (+cache,
+reindex, webhooks, export, purge). The policy engine raises 403 `forbidden` when a
+principal lacks a required permission.

@@ -162,3 +162,12 @@ class SavedSearchRequest(BaseModel):
     query: str = Field(min_length=1, max_length=2000)
     label: str = Field(min_length=1, max_length=200)
     tags: list[str] = Field(default_factory=list)
+
+
+class WebhookRequest(BaseModel):
+    """Register a webhook subscription."""
+
+    tenant: str = Field(min_length=1, max_length=128)
+    url: str = Field(min_length=1, max_length=2000)
+    secret: str = Field(min_length=8, max_length=256)
+    events: list[str] = Field(min_length=1, max_length=20)

@@ -65,6 +65,17 @@ class SavedSearchService:
         """Delete a saved search."""
         return await self._repo.delete(self._key(owner, search_id))
 
+    async def list_by_owner(self, owner: str) -> list[SavedSearch]:
+        """Return all saved searches belonging to an owner."""
+        prefix = f"{owner}:"
+        result: list[SavedSearch] = []
+        for entry in await self._repo.list_values():
+            if entry.value.owner == owner:
+                result.append(entry.value)
+        # Defensive: also include any keyed under the owner prefix.
+        del prefix
+        return result
+
     async def count(self) -> int:
         """Total saved searches across owners."""
         return await self._repo.count()

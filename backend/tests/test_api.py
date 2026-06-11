@@ -200,6 +200,77 @@ async def test_admin_reindex_endpoint(client):
     assert r.json()["indexed"] >= 1
 
 
+async def test_admin_reindex_idempotent_replay(client):
+    first = await client.post("/api/admin/reindex", headers={"Idempotency-Key": "abc123"})
+    assert first.status_code == 200
+    assert "idempotent_replay" not in first.json()
+    second = await client.post("/api/admin/reindex", headers={"Idempotency-Key": "abc123"})
+    assert second.status_code == 200
+    assert second.json()["idempotent_replay"] is True
+    assert second.json()["indexed"] == first.json()["indexed"]
+
+
+async def test_audit_endpoint(client):
+    r = await client.get("/api/audit")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["verified"] is True
+    assert "entries" in body
+
+
+async def test_webhook_create_and_delete(client):
+    create = await client.post(
+        "/api/webhooks",
+        json={
+            "tenant": "acme",
+            "url": "https://example.com/hook",
+            "secret": "supersecret",
+            "events": ["search.performed"],
+        },
+    )
+    assert create.status_code == 200
+    wid = create.json()["id"]
+    deleted = await client.delete(f"/api/webhooks/{wid}")
+    assert deleted.status_code == 200
+
+
+async def test_webhook_delete_missing(client):
+    r = await client.delete("/api/webhooks/missing")
+    assert r.status_code == 404
+
+
+async def test_usage_endpoint(client):
+    r = await client.get("/api/usage/acme")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["tenant"] == "acme"
+    assert "remaining" in body
+    assert "quota" in body
+
+
+async def test_gdpr_export_endpoint(client):
+    # Create some data first.
+    await client.post(
+        "/api/saved-searches",
+        json={"owner": "alice", "query": "halal", "label": "h"},
+    )
+    r = await client.get("/api/gdpr/export/alice")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["subject"] == "alice"
+    assert len(body["saved_searches"]) >= 1
+
+
+async def test_gdpr_purge_endpoint(client):
+    await client.post(
+        "/api/saved-searches",
+        json={"owner": "bob", "query": "halal", "label": "h"},
+    )
+    r = await client.request("DELETE", "/api/gdpr/bob")
+    assert r.status_code == 200
+    assert r.json()["saved_searches_removed"] >= 1
+
+
 async def test_get_agent_lazy_init():
     # When components not initialized, get_agent should build them on demand.
     deps._components = None
@@ -232,9 +303,19 @@ async def test_shutdown_closes_closables():
     from app.admin.service import AdminService
     from app.ingestion.pipeline import FreshnessTracker, IngestionPipeline
     from app.resilience.cache import TTLCache
+    from app.authz.policy import PolicyEngine, PrincipalResolver
+    from app.audit.log import AuditLog
+    from app.webhooks.dispatcher import WebhookRegistry
+    from app.idempotency.store import IdempotencyStore
+    from app.metering.usage import UsageMeter
+    from app.gdpr.data_rights import DataRightsService
+    from app.notifications.alerts import AlertManager
 
     repo = InMemoryEventRepository()
     flags = FeatureFlags()
+    sessions = SessionStore()
+    saved = SavedSearchService()
+    audit = AuditLog()
     admin = AdminService(
         cache=TTLCache(),
         events=repo,
@@ -244,15 +325,23 @@ async def test_shutdown_closes_closables():
     )
     deps._components = Components(
         agent=object(),
-        sessions=SessionStore(),
+        sessions=sessions,
         analytics=AnalyticsRecorder(),
         events=repo,
         health=HealthRegistry(),
         tracer=Tracer(),
         event_bus=EventBus(),
         flags=flags,
-        saved_searches=SavedSearchService(),
+        saved_searches=saved,
         admin=admin,
+        resolver=PrincipalResolver(),
+        policy=PolicyEngine(),
+        audit=audit,
+        webhooks=WebhookRegistry(),
+        idempotency=IdempotencyStore(),
+        meter=UsageMeter(),
+        data_rights=DataRightsService(sessions=sessions, saved_searches=saved, audit=audit),
+        alerts=AlertManager(),
         closables=[_C(), object()],
     )
     await deps.shutdown_components()

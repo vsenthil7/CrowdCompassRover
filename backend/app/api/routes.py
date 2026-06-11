@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Request, Response
 from sse_starlette.sse import EventSourceResponse
 
 from app.agent.orchestrator import RoverAgent
@@ -12,12 +12,18 @@ from app.api.deps import (
     get_admin,
     get_agent,
     get_analytics,
+    get_audit,
+    get_data_rights,
     get_flags,
     get_health_registry,
+    get_idempotency,
+    get_meter,
     get_saved_searches,
     get_sessions,
     get_tracer,
+    get_webhooks,
 )
+from app.idempotency.store import KeyState
 from app.conversation.session import SessionStore
 from app.core.config import Settings, get_settings
 from app.enrichment.routes import TravelMode
@@ -31,6 +37,7 @@ from app.models.domain import (
     SavedSearchRequest,
     SearchRequest,
     SearchResponse,
+    WebhookRequest,
 )
 from app.observability.metrics import get_metrics
 
@@ -213,10 +220,110 @@ async def admin_flush_cache(admin=Depends(get_admin)) -> dict:
 
 
 @router.post("/admin/reindex")
-async def admin_reindex(admin=Depends(get_admin)) -> dict:
-    """Trigger a reindex from ingestion sources."""
+async def admin_reindex(
+    request: Request,
+    admin=Depends(get_admin),
+    idempotency=Depends(get_idempotency),
+) -> dict:
+    """Trigger a reindex from ingestion sources.
+
+    Honours an optional ``Idempotency-Key`` header so a retried reindex returns the prior
+    result instead of running twice.
+    """
+    key = request.headers.get("Idempotency-Key")
+    if key:
+        state, cached = await idempotency.begin(key)
+        if state != KeyState.NEW:
+            return {**cached, "idempotent_replay": True}
     result = await admin.reindex()
-    return {"indexed": result.indexed, "healthy": result.healthy}
+    payload = {"indexed": result.indexed, "healthy": result.healthy}
+    if key:
+        await idempotency.complete(key, payload)
+    return payload
+
+
+@router.get("/audit")
+async def audit_log(audit=Depends(get_audit)) -> dict:
+    """Return recent audit entries and chain-integrity status."""
+    entries = audit.entries()[-100:]
+    return {
+        "verified": audit.verify(),
+        "count": audit.size,
+        "entries": [
+            {
+                "seq": e.seq,
+                "actor": e.actor,
+                "tenant": e.tenant,
+                "action": e.action,
+                "resource": e.resource,
+                "outcome": e.outcome,
+                "ts": e.ts,
+            }
+            for e in entries
+        ],
+    }
+
+
+@router.post("/webhooks")
+async def create_webhook(
+    req: WebhookRequest, registry=Depends(get_webhooks), audit=Depends(get_audit)
+) -> dict:
+    """Register a webhook subscription."""
+    import uuid
+
+    from app.webhooks.dispatcher import WebhookSubscription
+
+    sub = WebhookSubscription(
+        id=uuid.uuid4().hex[:12],
+        tenant=req.tenant,
+        url=req.url,
+        secret=req.secret,
+        events=set(req.events),
+    )
+    registry.register(sub)
+    audit.record(req.tenant, req.tenant, "webhook.create", sub.id, "success")
+    return {"id": sub.id, "events": sorted(sub.events)}
+
+
+@router.delete("/webhooks/{sub_id}")
+async def delete_webhook(sub_id: str, registry=Depends(get_webhooks)) -> dict:
+    """Remove a webhook subscription."""
+    if not registry.remove(sub_id):
+        raise NotFoundError("webhook not found")
+    return {"deleted": True}
+
+
+@router.get("/usage/{tenant}")
+async def usage(tenant: str, meter=Depends(get_meter)) -> dict:
+    """Return current-period usage and remaining quota for a tenant."""
+    current = meter.current(tenant)
+    return {
+        "tenant": tenant,
+        "period": current.period,
+        "count": current.count,
+        "by_action": current.by_action,
+        "remaining": meter.remaining(tenant),
+        "quota": meter.quota_for(tenant),
+    }
+
+
+@router.get("/gdpr/export/{subject}")
+async def gdpr_export(subject: str, service=Depends(get_data_rights)) -> dict:
+    """Export all data held about a subject."""
+    doc = await service.export(subject)
+    return doc.to_dict()
+
+
+@router.delete("/gdpr/{subject}")
+async def gdpr_purge(subject: str, service=Depends(get_data_rights), audit=Depends(get_audit)) -> dict:
+    """Purge a subject's data."""
+    result = await service.purge(subject)
+    audit.record(subject, "default", "gdpr.purge", subject, "success")
+    return {
+        "subject": result.subject,
+        "sessions_removed": result.sessions_removed,
+        "saved_searches_removed": result.saved_searches_removed,
+    }
 
 
 @router.post("/chat/stream")

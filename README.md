@@ -19,21 +19,23 @@ Agent Builder / Gemini** (multilingual reasoning).
   enrichment for the "cheapest route to the stadium now" use case.
 - **Production concerns built in:** structured logging + Prometheus metrics, distributed
   tracing, an async event bus, runtime feature flags, retry / circuit-breaker / caching
-  resilience, rate limiting + API-key auth + input sanitisation, RFC-7807 errors, an
-  ingestion pipeline with freshness tracking, multi-turn sessions, query analytics,
-  dependency health/readiness probes, a job scheduler, a persistence repository layer with
-  optimistic concurrency, saved searches, pagination, a batch API, an admin/ops surface,
-  i18n, and per-environment config validation.
+  resilience, RBAC authorization, a tamper-evident audit log, signed webhook delivery,
+  idempotency, per-tenant usage quotas, GDPR export/purge, alerting, rate limiting +
+  API-key auth + input sanitisation, RFC-7807 errors, an ingestion pipeline with freshness
+  tracking, multi-turn sessions, query analytics, dependency health/readiness probes, a job
+  scheduler, a persistence repository layer with optimistic concurrency, saved searches,
+  pagination, a batch API, an admin/ops surface, i18n, and per-environment config
+  validation.
 - **Ranking depth:** synonym query expansion, spell tolerance, and business-signal
   reranking (open-now / proximity / capacity) on top of hybrid keyword+vector+geo search.
 - **Real + mock parity:** every integration (Elastic MCP, Gemini, Google Routes) has real
   code behind a provider interface, switched by `APP_MODE` + credentials — no code change.
 - **Multilingual:** English, Spanish, French, Portuguese, German, Arabic answer support.
-- **Quality bar:** backend **100%** coverage (313 tests), frontend **100%** coverage
-  (90 tests), Playwright E2E journeys, strict TypeScript.
+- **Quality bar:** backend **100%** coverage (371 tests), frontend **100%** coverage
+  (115 tests), Playwright E2E journeys, strict TypeScript.
 - **Distinctive UI:** a "matchday departure-board" React interface with engine-feature
-  panel, conversation history, route options, saved searches, pagination, and an error
-  boundary.
+  panel, conversation history, route options, saved searches, pagination, an accessible
+  admin/ops dashboard, and an error boundary.
 
 ---
 
@@ -102,6 +104,13 @@ crowdcompass-rover/
 │   │   ├── ranking/       query expansion, spell tolerance, business reranker
 │   │   ├── enrichment/    route models, mock + Google Routes providers
 │   │   ├── persistence/   repository ports, in-memory + versioned adapters, saved searches
+│   │   ├── authz/         RBAC roles, permissions, principal resolver, policy engine
+│   │   ├── audit/         hash-chained tamper-evident audit log
+│   │   ├── webhooks/      subscriber registry + signed retried delivery
+│   │   ├── idempotency/   idempotency-key store
+│   │   ├── metering/      per-tenant usage quotas
+│   │   ├── gdpr/          data export + purge
+│   │   ├── notifications/ alert rules, severities, channels
 │   │   ├── analytics/     query event recorder + aggregation
 │   │   ├── tracing/       OpenTelemetry-style spans + exporter
 │   │   ├── events/        async event bus + typed domain events
@@ -122,11 +131,12 @@ crowdcompass-rover/
 │   │   ├── models/        domain models
 │   │   ├── data/          fixtures + seed
 │   │   └── api/           routes + DI
-│   └── tests/          313 tests @ 100% coverage
+│   └── tests/          371 tests @ 100% coverage
 ├── frontend/           Vite + React + TS UI
 │   ├── src/            components (Result/Plan/Answer/Feature/History/Route/Saved panels,
-│   │                   Pagination, ErrorBoundary), hooks, lib, styles
-│   └── tests/          90 tests @ 100% coverage
+│   │                   Pagination, AdminDashboard, UsageView, ErrorBoundary), hooks, lib,
+│   │                   styles
+│   └── tests/          115 tests @ 100% coverage
 ├── e2e/                Playwright journeys + dual web-server config
 ├── docs/               architecture, API, user guide (+ screenshots), tracker
 ├── scripts/            screenshot snapshot generator

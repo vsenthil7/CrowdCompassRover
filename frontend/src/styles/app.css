@@ -615,3 +615,155 @@ body {
 .saved__delete:hover {
   color: var(--alert);
 }
+
+/* Admin toggle + dashboard */
+.admin-toggle {
+  margin-left: 10px;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+
+.admin-toggle:hover,
+.admin-toggle:focus-visible {
+  color: var(--amber);
+  border-color: var(--amber-deep);
+  outline: none;
+}
+
+.admin {
+  margin: 18px 0;
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--amber);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+}
+
+.admin__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.admin__title {
+  font-family: var(--font-display);
+  letter-spacing: 0.06em;
+  font-size: 20px;
+  margin: 0;
+  color: var(--amber);
+}
+
+.admin__refresh {
+  font-size: 12px;
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+
+.admin__refresh:focus-visible {
+  outline: 2px solid var(--amber);
+}
+
+.admin__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.stat {
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stat__label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-dim);
+}
+
+.stat__value {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.admin__actions {
+  display: flex;
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.admin__subtitle {
+  font-size: 14px;
+  color: var(--ink-dim);
+  margin: 12px 0 6px;
+}
+
+.audit-ok {
+  color: var(--pitch);
+}
+
+.audit-bad {
+  color: var(--alert);
+}
+
+.admin__audit-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 12px;
+  color: var(--ink-dim);
+  display: grid;
+  gap: 4px;
+}
+
+/* Usage */
+.usage {
+  margin: 8px 0 14px;
+}
+
+.usage__title {
+  font-size: 14px;
+  color: var(--ink-dim);
+  margin: 0 0 6px;
+}
+
+.usage__bar {
+  height: 8px;
+  background: var(--bg-elev);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.usage__fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--pitch), var(--amber));
+}
+
+.usage__line {
+  font-size: 12px;
+  color: var(--ink-dim);
+  margin: 6px 0 0;
+}
+
+.usage__actions {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--ink-dim);
+}

@@ -1,10 +1,13 @@
 import type {
+  AdminStatus,
+  AuditReport,
   ChatAnswer,
   GeoPoint,
   HealthStatus,
   RouteResponse,
   SavedSearch,
   SearchResponse,
+  UsageInfo,
 } from "./types";
 
 const BASE = "/api";
@@ -59,6 +62,34 @@ export async function deleteSavedSearch(owner: string, id: string): Promise<void
   if (!res.ok) {
     throw new ApiError(res.status, "delete failed");
   }
+}
+
+async function getJson<T>(path: string): Promise<T> {
+  const res = await fetch(`${BASE}${path}`);
+  if (!res.ok) {
+    throw new ApiError(res.status, `request failed: ${path}`);
+  }
+  return (await res.json()) as T;
+}
+
+export async function adminStatus(): Promise<AdminStatus> {
+  return getJson<AdminStatus>("/admin/status");
+}
+
+export async function usage(tenant: string): Promise<UsageInfo> {
+  return getJson<UsageInfo>(`/usage/${tenant}`);
+}
+
+export async function auditLog(): Promise<AuditReport> {
+  return getJson<AuditReport>("/audit");
+}
+
+export async function reindex(): Promise<{ indexed: number; healthy: boolean }> {
+  return postJson("/admin/reindex", {});
+}
+
+export async function flushCache(): Promise<{ flushed: boolean }> {
+  return postJson("/admin/cache/flush", {});
 }
 
 export async function chat(

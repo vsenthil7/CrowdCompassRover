@@ -159,3 +159,36 @@ frontend to **90 tests**. Both at 100% coverage.
 ### Fixes
 - Normalizer now reads nested `location` objects from feeds.
 - Pagination fetches a larger candidate window so pages are stable.
+
+---
+
+## v1.4.0 — 2026-06-01
+
+Enterprise governance expansion. Backend grew to **103 modules / ~6,450 lines / 371
+tests**; frontend to **115 tests**. Both at 100% coverage.
+
+### New backend capabilities
+- **RBAC authorization** — permissions, roles (visitor/analyst/admin), principal
+  resolution from API keys, and a policy engine with typed 403s.
+- **Tamper-evident audit log** — hash-chained append-only entries with integrity
+  verification.
+- **Webhooks** — subscriber registry and HMAC-signed, retried delivery to external URLs.
+- **Idempotency** — idempotency-key store; the reindex action is now safely retryable.
+- **Usage metering** — per-tenant monthly quotas with accounting and a typed 429.
+- **GDPR data rights** — export and purge of a subject's data.
+- **Notifications/alerting** — rule evaluation with severities, cooldown, and channels.
+
+### New frontend capabilities
+- **Admin dashboard** — operational status, usage/quota view, audit-integrity display, and
+  reindex / cache-flush actions, behind an accessible "Ops" toggle.
+- **Accessibility module** — shared keyboard-activation, aria-live, and formatting helpers.
+
+### API additions
+- `/audit`, `/webhooks` (create/delete), `/usage/{tenant}`, `/gdpr/export/{subject}`,
+  `/gdpr/{subject}` (purge); `/admin/reindex` honours `Idempotency-Key`.
+
+### Notes
+- Added clean public methods to support GDPR without reaching into internals
+  (`SavedSearchService.list_by_owner`, `VersionedRepository.list_values`,
+  `SessionStore.drop`).
+- Fixed a logging-capture test flake (now uses caplog deterministically).

@@ -93,3 +93,10 @@ class SessionStore:
     def active_count(self) -> int:
         """Number of (not-yet-evicted) sessions."""
         return len(self._sessions)
+
+    def drop(self, session_id: str) -> bool:
+        """Remove a session entirely (used for data purge); returns whether it existed."""
+        if session_id in self._sessions:
+            del self._sessions[session_id]
+            return True
+        return False

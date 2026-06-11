@@ -78,6 +78,11 @@ class VersionedRepository(Generic[K, T]):
                 return True
             return False
 
+    async def list_values(self) -> list[Versioned[T]]:
+        """Return all versioned entries."""
+        async with self._lock:
+            return list(self._data.values())
+
     async def count(self) -> int:
         async with self._lock:
             return len(self._data)

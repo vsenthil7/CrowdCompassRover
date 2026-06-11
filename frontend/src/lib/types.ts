@@ -69,6 +69,40 @@ export interface SavedSearch {
   tags: string[];
 }
 
+export interface AdminStatus {
+  events: number;
+  cache_size: number;
+  cache_hit_rate: number;
+  data_stale: boolean;
+  data_age_seconds: number;
+  flags: Record<string, boolean>;
+}
+
+export interface UsageInfo {
+  tenant: string;
+  period: string;
+  count: number;
+  by_action: Record<string, number>;
+  remaining: number;
+  quota: number;
+}
+
+export interface AuditEntry {
+  seq: number;
+  actor: string;
+  tenant: string;
+  action: string;
+  resource: string;
+  outcome: string;
+  ts: number;
+}
+
+export interface AuditReport {
+  verified: boolean;
+  count: number;
+  entries: AuditEntry[];
+}
+
 export interface Citation {
   event_id: string;
   name: string;

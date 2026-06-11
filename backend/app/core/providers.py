@@ -10,6 +10,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.admin.service import AdminService
+from app.audit.log import AuditLog
+from app.authz.policy import KeyBinding, PolicyEngine, PrincipalResolver
+from app.gdpr.data_rights import DataRightsService
+from app.idempotency.store import IdempotencyStore
+from app.metering.usage import UsageMeter
+from app.notifications.alerts import AlertManager, AlertRule, Severity, log_channel
+from app.webhooks.dispatcher import WebhookRegistry
 from app.agent.answerer import Answerer, MockAnswerer
 from app.agent.gemini_client import GeminiClient
 from app.agent.gemini_planner import GeminiAnswerer, GeminiPlanner
@@ -60,6 +67,14 @@ class Components:
     flags: FeatureFlags
     saved_searches: SavedSearchService
     admin: AdminService
+    resolver: "PrincipalResolver"
+    policy: "PolicyEngine"
+    audit: "AuditLog"
+    webhooks: "WebhookRegistry"
+    idempotency: "IdempotencyStore"
+    meter: "UsageMeter"
+    data_rights: "DataRightsService"
+    alerts: "AlertManager"
     closables: list[object]
 
 
@@ -184,6 +199,43 @@ def wire_event_handlers(bus: EventBus, analytics: AnalyticsRecorder) -> None:
     bus.subscribe("search.zero_result", on_zero_result)
 
 
+def build_authz(settings: Settings) -> tuple[PrincipalResolver, PolicyEngine]:
+    """Build the principal resolver (from configured key bindings) and policy engine.
+
+    Keys configured in ``API_KEYS`` are granted the admin role by default so a single-key
+    deployment is fully capable; finer-grained bindings can be registered at runtime.
+    """
+    resolver = PrincipalResolver()
+    for i, key in enumerate(sorted(settings.api_key_set)):
+        resolver.register(
+            KeyBinding(api_key=key, subject=f"key-{i}", tenant="default", role_names=["admin"])
+        )
+    return resolver, PolicyEngine()
+
+
+def build_alert_manager() -> AlertManager:
+    """Build the alert manager with default rules and the log channel."""
+    manager = AlertManager()
+    manager.add_channel(log_channel)
+    manager.add_rule(
+        AlertRule(
+            name="high_zero_result_rate",
+            severity=Severity.WARNING,
+            predicate=lambda s: s.get("zero_result_rate", 0.0) > 0.5,
+            message="Zero-result rate above 50%",
+        )
+    )
+    manager.add_rule(
+        AlertRule(
+            name="dependency_unhealthy",
+            severity=Severity.CRITICAL,
+            predicate=lambda s: not s.get("ready", True),
+            message="A critical dependency is unhealthy",
+        )
+    )
+    return manager
+
+
 def build_components(settings: Settings) -> Components:
     """Assemble the full agent for the active mode."""
     base, c1 = build_base_search_provider(settings)
@@ -212,6 +264,14 @@ def build_components(settings: Settings) -> Components:
         flags=flags,
     )
 
+    resolver, policy = build_authz(settings)
+    audit = AuditLog()
+    webhooks = WebhookRegistry()
+    idempotency = IdempotencyStore()
+    meter = UsageMeter()
+    data_rights = DataRightsService(sessions=sessions, saved_searches=saved, audit=audit)
+    alerts = build_alert_manager()
+
     agent = RoverAgent(
         planner=planner,
         pipeline=pipeline,
@@ -233,5 +293,13 @@ def build_components(settings: Settings) -> Components:
         flags=flags,
         saved_searches=saved,
         admin=admin,
+        resolver=resolver,
+        policy=policy,
+        audit=audit,
+        webhooks=webhooks,
+        idempotency=idempotency,
+        meter=meter,
+        data_rights=data_rights,
+        alerts=alerts,
         closables=[*c1, *c2, *c3],
     )

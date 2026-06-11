@@ -364,6 +364,22 @@ describe("App", () => {
     await waitFor(() => expect(screen.getByTestId("pagination-end")).toBeInTheDocument());
   });
 
+  it("toggles the ops dashboard and loads admin data", async () => {
+    mockedApi.adminStatus.mockResolvedValue({
+      events: 16, cache_size: 0, cache_hit_rate: 0.5, data_stale: false, data_age_seconds: 5, flags: {},
+    });
+    mockedApi.usage.mockResolvedValue({
+      tenant: "t", period: "2026-06", count: 1, by_action: {}, remaining: 9, quota: 10,
+    });
+    mockedApi.auditLog.mockResolvedValue({ verified: true, count: 0, entries: [] });
+    render(<App />);
+    fireEvent.click(screen.getByTestId("admin-toggle"));
+    await waitFor(() => expect(screen.getByTestId("admin-dashboard")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId("admin-status")).toBeInTheDocument());
+    fireEvent.keyDown(screen.getByTestId("admin-toggle"), { key: " " });
+    await waitFor(() => expect(screen.queryByTestId("admin-dashboard")).toBeNull());
+  });
+
   it("saves and lists a saved search", async () => {
     mockedApi.saveSearch.mockResolvedValue({ id: "s1", owner: "o", query: "halal food open now", label: "halal food open now", tags: [] });
     mockedApi.deleteSavedSearch.mockResolvedValue(undefined);

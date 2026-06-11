@@ -135,4 +135,45 @@ describe("api client", () => {
     fetchMock.mockResolvedValue({ ok: false, status: 404 });
     await expect(api.deleteSavedSearch("o", "s1")).rejects.toBeInstanceOf(ApiError);
   });
+
+  it("adminStatus fetches status", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ events: 16, cache_size: 0, cache_hit_rate: 0.5, data_stale: false, data_age_seconds: 5, flags: {} }),
+    });
+    const s = await api.adminStatus();
+    expect(s.events).toBe(16);
+  });
+
+  it("usage fetches tenant usage", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ tenant: "t", period: "2026-06", count: 3, by_action: {}, remaining: 7, quota: 10 }),
+    });
+    const u = await api.usage("t");
+    expect(u.remaining).toBe(7);
+  });
+
+  it("auditLog fetches audit report", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ verified: true, count: 0, entries: [] }),
+    });
+    const a = await api.auditLog();
+    expect(a.verified).toBe(true);
+  });
+
+  it("getJson throws on failure", async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 500 });
+    await expect(api.adminStatus()).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("reindex and flushCache post", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ indexed: 16, healthy: true }) });
+    const r = await api.reindex();
+    expect(r.indexed).toBe(16);
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ flushed: true }) });
+    const f = await api.flushCache();
+    expect(f.flushed).toBe(true);
+  });
 });

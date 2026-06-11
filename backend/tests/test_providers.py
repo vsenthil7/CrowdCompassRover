@@ -254,3 +254,47 @@ async def test_wire_event_handlers_zero_result_metric():
     wire_event_handlers(bus, AnalyticsRecorder())
     ran = await bus.publish(ZeroResult(query="q", language="en"))
     assert ran == 1
+
+
+def test_build_authz_with_keys():
+    from app.core.providers import build_authz
+
+    resolver, policy = build_authz(Settings(app_mode=AppMode.MOCK, api_keys="key-a,key-b"))
+    principal = resolver.resolve("key-a")
+    assert principal.tenant == "default"
+    assert "admin" in principal.role_names()
+
+
+def test_build_authz_no_keys():
+    from app.core.providers import build_authz
+
+    resolver, policy = build_authz(Settings(app_mode=AppMode.MOCK))
+    assert resolver.resolve("anything").subject == "anonymous"
+
+
+async def test_build_alert_manager_rules():
+    from app.core.providers import build_alert_manager
+
+    manager = build_alert_manager()
+    assert manager.rule_count == 2
+    fired = await manager.evaluate({"zero_result_rate": 0.9, "ready": True})
+    assert any(a.rule == "high_zero_result_rate" for a in fired)
+
+
+async def test_build_alert_manager_unhealthy():
+    from app.core.providers import build_alert_manager
+
+    manager = build_alert_manager()
+    fired = await manager.evaluate({"ready": False})
+    assert any(a.rule == "dependency_unhealthy" for a in fired)
+
+
+def test_build_components_has_all_collaborators():
+    comp = build_components(Settings(app_mode=AppMode.MOCK))
+    assert comp.audit.verify() is True
+    assert comp.webhooks.count == 0
+    assert comp.meter.quota_for("any") > 0
+    assert comp.resolver is not None
+    assert comp.policy is not None
+    assert comp.data_rights is not None
+    assert comp.alerts.rule_count == 2

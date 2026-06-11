@@ -63,6 +63,18 @@ next begins.
 | S41 | Admin/ops surface | Cache flush, reindex, status, flag inspect | ✅ |
 | S42 | Composition + API | Orchestrator tracing/events/pagination/sanitise, 11 new endpoints | ✅ |
 | S43 | Frontend width III | Pagination, SavedSearches; tests to 100% on both | ✅ |
+| S44 | Authz / RBAC | Roles, permissions, principal resolver, policy engine | ✅ |
+| S45 | Audit log | Hash-chained, tamper-evident append-only log | ✅ |
+| S46 | Webhooks | Subscriber registry + HMAC-signed retried delivery | ✅ |
+| S47 | Idempotency | Idempotency-key store + idempotent reindex | ✅ |
+| S48 | Usage metering | Per-tenant monthly quotas + accounting | ✅ |
+| S49 | GDPR | Data export + purge for a subject | ✅ |
+| S50 | Notifications | Alert rules, severities, cooldown, channels | ✅ |
+| S51 | Composition + API | Wire all into factory; 6 new endpoints | ✅ |
+| S52 | Backend tests | Tests for all new modules; restore 100% | ✅ |
+| S53 | Frontend a11y + client | a11y helpers module, admin/usage/audit API client | ✅ |
+| S54 | Admin dashboard | AdminDashboard, UsageView, useAdmin hook | ✅ |
+| S55 | Frontend tests | Tests for new components/hook; restore 100% on both | ✅ |
 
 ---
 
@@ -276,11 +288,69 @@ tests / Frontend 90 tests, both 100%.** Strict TS build green.
 
 ---
 
+## Enterprise Governance Expansion (v1.4.0)
+
+### S44 — Authz / RBAC ✅
+`authz/`: `Permission` enum, `Role` (frozen permission sets), `Principal`, built-in
+visitor/analyst/admin hierarchy, a `PrincipalResolver` (API key → principal) and a
+`PolicyEngine` raising a typed 403 `AuthorizationError`.
+
+### S45 — Audit log ✅
+`audit/`: append-only, hash-chained `AuditLog` (each entry's hash includes the previous),
+`verify()` detecting any tampering, plus actor/tenant filtering.
+
+### S46 — Webhooks ✅
+`webhooks/`: `WebhookRegistry` + `WebhookDispatcher` delivering HMAC-SHA256-signed payloads
+to external subscribers with bounded retries, via an injected sender (testable offline).
+
+### S47 — Idempotency ✅
+`idempotency/`: `IdempotencyStore` (NEW/IN_FLIGHT/COMPLETED states, TTL expiry); the admin
+reindex endpoint honours an `Idempotency-Key` header and replays the prior result.
+
+### S48 — Usage metering ✅
+`metering/`: per-tenant monthly `UsageMeter` with quota enforcement (typed 429
+`QuotaExceededError`), period rollover, and per-action accounting.
+
+### S49 — GDPR ✅
+`gdpr/`: `DataRightsService` exporting a subject's sessions, saved searches, and audit
+entries into one document, and purging them — using clean public APIs on the collaborators
+(added `SavedSearchService.list_by_owner`, `VersionedRepository.list_values`,
+`SessionStore.drop`).
+
+### S50 — Notifications ✅
+`notifications/`: `AlertManager` evaluating rules over a snapshot, with severities, cooldown
+suppression, and pluggable channels (built-in structured-log channel).
+
+### S51 — Composition + API ✅
+Factory wires resolver, policy, audit, webhooks, idempotency, meter, data-rights, and a
+default alert manager (high zero-result rate; dependency unhealthy). New endpoints:
+`/audit`, `/webhooks` (create/delete), `/usage/{tenant}`, `/gdpr/export/{subject}`,
+`/gdpr/{subject}` (purge); reindex made idempotent.
+
+### S52 — Backend tests ✅
+New suites for authz, audit, idempotency, webhooks, metering, GDPR, alerts, the new factory
+builders, and the new endpoints. Caught and fixed a logging-capture flake. **Backend 371
+tests, 100%.**
+
+### S53 — Frontend a11y + client ✅
+`lib/a11y.ts` (keyboard-activation, aria-live, age/percent formatters) and admin/usage/audit
+methods on the API client.
+
+### S54 — Admin dashboard ✅
+`AdminDashboard`, `UsageView`, and the `useAdmin` hook (status/usage/audit load, reindex,
+flush cache); an accessible "Ops" toggle in the masthead.
+
+### S55 — Frontend tests ✅
+Tests for a11y helpers, the admin/usage components, the `useAdmin` hook, the new client
+methods, and the App ops-toggle flow. **Backend 371 / Frontend 115 tests, both 100%.**
+
+---
+
 ## Coverage Ledger
 | Layer | Tool | Target | Latest |
 |-------|------|-------:|-------:|
-| Backend | pytest-cov | 100% | ✅ 100.00% (313 tests, 2479 stmts) |
-| Frontend | vitest --coverage | 100% | ✅ 100.00% (90 tests) |
+| Backend | pytest-cov | 100% | ✅ 100.00% (371 tests, 2964 stmts) |
+| Frontend | vitest --coverage | 100% | ✅ 100.00% (115 tests) |
 | E2E flows | Playwright | 100% of journeys | ✅ 8 journeys (browser run pending CDN access; flows validated via live API) |
 
 ## Access Ledger (live)

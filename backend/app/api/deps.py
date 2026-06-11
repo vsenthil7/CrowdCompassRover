@@ -75,3 +75,28 @@ def get_saved_searches():
 def get_admin():
     """Return the admin service (FastAPI dependency)."""
     return _get_components().admin
+
+
+def get_audit():
+    """Return the audit log (FastAPI dependency)."""
+    return _get_components().audit
+
+
+def get_webhooks():
+    """Return the webhook registry (FastAPI dependency)."""
+    return _get_components().webhooks
+
+
+def get_meter():
+    """Return the usage meter (FastAPI dependency)."""
+    return _get_components().meter
+
+
+def get_data_rights():
+    """Return the GDPR data-rights service (FastAPI dependency)."""
+    return _get_components().data_rights
+
+
+def get_idempotency():
+    """Return the idempotency store (FastAPI dependency)."""
+    return _get_components().idempotency
