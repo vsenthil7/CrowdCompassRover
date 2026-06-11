@@ -50,7 +50,12 @@ const chatRes: ChatAnswer = {
 };
 
 beforeEach(() => {
-  mockedApi.health.mockResolvedValue({ status: "ok", mode: "mock" });
+  mockedApi.health.mockResolvedValue({
+    status: "ok",
+    mode: "mock",
+    sessions_active: 1,
+    features: { reranking: true, query_expansion: true, spell_correction: true },
+  });
   mockedApi.search.mockResolvedValue(searchRes);
   mockedApi.chat.mockResolvedValue(chatRes);
 });
@@ -60,15 +65,15 @@ afterEach(() => {
 });
 
 describe("useRover hook", () => {
-  it("loads mode on mount", async () => {
+  it("loads health on mount", async () => {
     const { result } = renderHook(() => useRover());
-    await waitFor(() => expect(result.current.state.mode).toBe("mock"));
+    await waitFor(() => expect(result.current.state.health?.mode).toBe("mock"));
   });
 
-  it("sets mode unknown when health fails", async () => {
+  it("sets health null when health fails", async () => {
     mockedApi.health.mockRejectedValue(new Error("down"));
     const { result } = renderHook(() => useRover());
-    await waitFor(() => expect(result.current.state.mode).toBe("unknown"));
+    await waitFor(() => expect(result.current.state.health).toBeNull());
   });
 
   it("run does nothing on empty query", async () => {
@@ -85,7 +90,7 @@ describe("useRover hook", () => {
     await act(async () => {
       await result.current.run("halal food open now");
     });
-    expect(mockedApi.search).toHaveBeenCalledWith("halal food open now", DEFAULT_LOCATION, 5);
+    expect(mockedApi.search).toHaveBeenCalledWith("halal food open now", DEFAULT_LOCATION, 5, expect.any(String));
     expect(result.current.state.response).toEqual(searchRes);
   });
 
@@ -94,7 +99,7 @@ describe("useRover hook", () => {
     await act(async () => {
       await result.current.run("halal food open now");
     });
-    expect(mockedApi.search).toHaveBeenCalledWith("halal food open now", null, 5);
+    expect(mockedApi.search).toHaveBeenCalledWith("halal food open now", null, 5, expect.any(String));
   });
 
   it("captures error and clears results", async () => {
@@ -122,7 +127,7 @@ describe("useRover hook", () => {
     await act(async () => {
       await result.current.run();
     });
-    expect(mockedApi.search).toHaveBeenCalledWith("stadium", null, 5);
+    expect(mockedApi.search).toHaveBeenCalledWith("stadium", null, 5, expect.any(String));
   });
 });
 
@@ -139,6 +144,22 @@ describe("App", () => {
     await waitFor(() => expect(screen.getByTestId("answer-card")).toBeInTheDocument());
     expect(screen.getByTestId("plan-strip")).toBeInTheDocument();
     expect(screen.getByText("Halal Guys")).toBeInTheDocument();
+  });
+
+  it("shows feature panel and records history after a search", async () => {
+    render(<App />);
+    await waitFor(() => expect(screen.getByTestId("feature-panel")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("halal food open now"));
+    await waitFor(() => expect(screen.getByTestId("history-panel")).toBeInTheDocument());
+    expect(screen.getAllByTestId("history-item").length).toBeGreaterThan(0);
+  });
+
+  it("replays a query from history", async () => {
+    render(<App />);
+    fireEvent.click(screen.getByText("halal food open now"));
+    await waitFor(() => expect(screen.getByTestId("history-panel")).toBeInTheDocument());
+    fireEvent.click(screen.getAllByTestId("history-item")[0]);
+    await waitFor(() => expect(mockedApi.search).toHaveBeenCalledTimes(2));
   });
 
   it("shows empty-results state", async () => {
@@ -169,6 +190,6 @@ describe("App", () => {
     fireEvent.change(input, { target: { value: "stadium" } });
     fireEvent.click(screen.getByText("Ask"));
     await waitFor(() => expect(screen.getByTestId("answer-card")).toBeInTheDocument());
-    expect(mockedApi.search).toHaveBeenCalledWith("stadium", DEFAULT_LOCATION, 5);
+    expect(mockedApi.search).toHaveBeenCalledWith("stadium", DEFAULT_LOCATION, 5, expect.any(String));
   });
 });

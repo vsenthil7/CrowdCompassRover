@@ -70,3 +70,23 @@ export interface ChatAnswer {
   citations: Citation[];
   results: ScoredEvent[];
 }
+
+export interface HealthFeatures {
+  reranking: boolean;
+  query_expansion: boolean;
+  spell_correction: boolean;
+}
+
+export interface HealthStatus {
+  status: string;
+  mode: string;
+  sessions_active: number;
+  features: HealthFeatures;
+}
+
+export interface HistoryEntry {
+  id: string;
+  query: string;
+  language: string;
+  resultCount: number;
+}

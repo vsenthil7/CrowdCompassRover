@@ -69,7 +69,15 @@ LANDING = page(MAST + SEARCHBAR.format(q="") + """
 <div class='empty'>Ask for stadiums, food, transit, currency exchange or fan zones — in any language.</div>
 """)
 
-ENGLISH = page(MAST + SEARCHBAR.format(q="halal food open now") + """
+ENGLISH = page(MAST + """
+<div class='feature-panel'>
+  <span class='feature-panel__label'>Engine</span>
+  <span class='feature-pill feature-pill--on'>Smart reranking</span>
+  <span class='feature-pill feature-pill--on'>Synonym expansion</span>
+  <span class='feature-pill feature-pill--on'>Spell tolerance</span>
+  <span class='feature-panel__sessions'>2 active</span>
+</div>
+""" + SEARCHBAR.format(q="halal food open now") + """
 <section class='answer'>
   <h2 class='answer__head'>Concierge · English</h2>
   <div>Here is what I found:
@@ -85,7 +93,14 @@ ENGLISH = page(MAST + SEARCHBAR.format(q="halal food open now") + """
 """ + row("▣", "Halal Guys 8th Avenue", "Food · New York · Halal", True, "9.1 km")
    + row("▣", "Sahara Halal Kitchen", "Food · Los Angeles · Halal", True)
    + row("▣", "Taquería Halal El Árabe", "Food · Mexico City · Halal", True)
-   + "</div>")
+   + """</div>
+<section class='history'>
+  <h2 class='history__head'>Conversation</h2>
+  <ol class='history__list'>
+    <li class='history__item'><button class='history__query'>halal food open now</button><span class='history__meta'>English · 3 results</span></li>
+    <li class='history__item'><button class='history__query'>where is the stadium</button><span class='history__meta'>English · 3 results</span></li>
+  </ol>
+</section>""")
 
 SPANISH = page(MAST + SEARCHBAR.format(q="dónde cambiar dinero ahora") + """
 <section class='answer'>

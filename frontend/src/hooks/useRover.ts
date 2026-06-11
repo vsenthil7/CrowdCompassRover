@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import * as api from "../lib/api";
-import type { ChatAnswer, GeoPoint, SearchResponse } from "../lib/types";
+import { getSessionId } from "../lib/session";
+import type {
+  ChatAnswer,
+  GeoPoint,
+  HealthStatus,
+  HistoryEntry,
+  SearchResponse,
+} from "../lib/types";
 
 // Default "stadium" location used when the location toggle is on (MetLife Stadium).
 export const DEFAULT_LOCATION: GeoPoint = { lat: 40.8135, lon: -74.0745 };
@@ -12,7 +19,8 @@ export interface RoverState {
   error: string | null;
   response: SearchResponse | null;
   answer: ChatAnswer | null;
-  mode: string;
+  health: HealthStatus | null;
+  history: HistoryEntry[];
 }
 
 export function useRover() {
@@ -22,14 +30,19 @@ export function useRover() {
   const [error, setError] = useState<string | null>(null);
   const [response, setResponse] = useState<SearchResponse | null>(null);
   const [answer, setAnswer] = useState<ChatAnswer | null>(null);
-  const [mode, setMode] = useState<string>("");
+  const [health, setHealth] = useState<HealthStatus | null>(null);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
 
-  useEffect(() => {
+  const refreshHealth = useCallback(() => {
     api
       .health()
-      .then((h) => setMode(h.mode))
-      .catch(() => setMode("unknown"));
+      .then(setHealth)
+      .catch(() => setHealth(null));
   }, []);
+
+  useEffect(() => {
+    refreshHealth();
+  }, [refreshHealth]);
 
   const run = useCallback(
     async (q?: string) => {
@@ -39,13 +52,24 @@ export function useRover() {
       setLoading(true);
       setError(null);
       const loc = useLocation ? DEFAULT_LOCATION : null;
+      const sessionId = getSessionId();
       try {
         const [searchRes, chatRes] = await Promise.all([
-          api.search(text, loc, 5),
-          api.chat(text, loc),
+          api.search(text, loc, 5, sessionId),
+          api.chat(text, loc, sessionId),
         ]);
         setResponse(searchRes);
         setAnswer(chatRes);
+        setHistory((prev) => [
+          {
+            id: `${Date.now()}-${prev.length}`,
+            query: text,
+            language: searchRes.plan.detected_language,
+            resultCount: searchRes.results.length,
+          },
+          ...prev,
+        ]);
+        refreshHealth();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Unknown error");
         setResponse(null);
@@ -54,11 +78,11 @@ export function useRover() {
         setLoading(false);
       }
     },
-    [query, useLocation],
+    [query, useLocation, refreshHealth],
   );
 
   return {
-    state: { query, useLocation, loading, error, response, answer, mode },
+    state: { query, useLocation, loading, error, response, answer, health, history },
     setQuery,
     setUseLocation,
     run,

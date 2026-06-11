@@ -89,8 +89,9 @@ async def test_shutdown_closes_closables():
             closed["v"] = True
 
     from app.core.providers import Components
+    from app.conversation.session import SessionStore
 
-    deps._components = Components(agent=object(), closables=[_C(), object()])
+    deps._components = Components(agent=object(), sessions=SessionStore(), closables=[_C(), object()])
     await deps.shutdown_components()
     assert closed["v"] is True
     assert deps._components is None

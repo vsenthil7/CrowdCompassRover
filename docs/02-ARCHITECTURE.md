@@ -112,5 +112,18 @@ to 100% coverage offline while remaining a faithful rehearsal of production beha
 | Answerer | `app/agent/{answerer,gemini_planner}.py` | Grounded answer (mock + Gemini) |
 | Orchestrator | `app/agent/orchestrator.py` | plan → search → ground |
 | Factory | `app/core/providers.py` | Mode-driven dependency wiring |
-| API | `app/api/routes.py`, `app/main.py` | HTTP + SSE endpoints |
-| Frontend | `frontend/src/**` | React UI (controls, board, answer) |
+| API | `app/api/routes.py`, `app/main.py` | HTTP + SSE endpoints, `/metrics` |
+| Frontend | `frontend/src/**` | React UI (controls, board, answer, panels) |
+
+### Cross-cutting modules (v1.1.0)
+
+| Concern | Path | Responsibility |
+|---------|------|----------------|
+| Observability | `app/observability/` | JSON logging, metrics registry, request middleware |
+| Resilience | `app/resilience/` | retry, circuit breaker, TTL+LRU cache |
+| Security | `app/security/` | rate limiting, API-key auth, middleware |
+| Ingestion | `app/ingestion/` | feed sources, normalizer, pipeline, freshness |
+| Ranking | `app/ranking/` | query expansion, spell tolerance, reranker |
+| Errors | `app/errors/` | typed exceptions, problem+json handlers |
+| Conversation | `app/conversation/` | session store, multi-turn context |
+| Composition | `app/services/resilient_search.py`, `search_pipeline.py` | resilient wrapper + ranking pipeline |

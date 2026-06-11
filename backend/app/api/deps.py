@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from app.agent.orchestrator import RoverAgent
+from app.conversation.session import SessionStore
 from app.core.config import get_settings
 from app.core.providers import Components, build_components
 
@@ -27,8 +28,18 @@ async def shutdown_components() -> None:
     _components = None
 
 
+def _get_components() -> Components:
+    """Return cached components, building them on demand."""
+    if _components is None:
+        return init_components()
+    return _components
+
+
 def get_agent() -> RoverAgent:
     """Return the constructed agent (FastAPI dependency)."""
-    if _components is None:
-        return init_components().agent
-    return _components.agent
+    return _get_components().agent
+
+
+def get_sessions() -> SessionStore:
+    """Return the session store (FastAPI dependency)."""
+    return _get_components().sessions

@@ -3,6 +3,8 @@ import { SearchControls } from "./components/SearchControls";
 import { PlanStrip } from "./components/PlanStrip";
 import { AnswerCard } from "./components/AnswerCard";
 import { ResultRow } from "./components/ResultRow";
+import { FeaturePanel } from "./components/FeaturePanel";
+import { HistoryPanel } from "./components/HistoryPanel";
 import "./styles/app.css";
 
 const EXAMPLES = [
@@ -14,7 +16,7 @@ const EXAMPLES = [
 
 export function App() {
   const { state, setQuery, setUseLocation, run } = useRover();
-  const { response, answer, loading, error, mode } = state;
+  const { response, answer, loading, error, health, history } = state;
 
   return (
     <div className="app-shell">
@@ -25,12 +27,14 @@ export function App() {
             CrowdCompass <span>Rover</span>
           </h1>
         </div>
-        {mode ? (
-          <span className="mode-chip" data-mode={mode} data-testid="mode-chip">
-            {mode} mode
+        {health ? (
+          <span className="mode-chip" data-mode={health.mode} data-testid="mode-chip">
+            {health.mode} mode
           </span>
         ) : null}
       </header>
+
+      {health ? <FeaturePanel health={health} /> : null}
 
       <SearchControls
         query={state.query}
@@ -72,6 +76,8 @@ export function App() {
           Ask for stadiums, food, transit, currency exchange or fan zones — in any language.
         </div>
       ) : null}
+
+      <HistoryPanel history={history} onReplay={(q) => run(q)} />
     </div>
   );
 }

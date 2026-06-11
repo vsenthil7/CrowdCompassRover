@@ -57,7 +57,15 @@ describe("api client", () => {
   });
 
   it("health returns mode", async () => {
-    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ status: "ok", mode: "mock" }) });
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        status: "ok",
+        mode: "mock",
+        sessions_active: 0,
+        features: { reranking: true, query_expansion: true, spell_correction: true },
+      }),
+    });
     const h = await api.health();
     expect(h.mode).toBe("mock");
   });

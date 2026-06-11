@@ -47,3 +47,44 @@ First complete build of CrowdCompass Rover for AT-Hack0025 (T2 — Elastic, P1).
 - Backend deploys to Cloud Run; frontend builds to static assets behind the same origin
   (the `/api` proxy in dev/preview mirrors the production same-origin setup).
 - No secrets are committed; configure via `backend/.env` from `.env.example`.
+
+---
+
+## v1.1.0 — 2026-06-01
+
+Enterprise depth & width expansion. Backend grew from ~1.7k to ~3.4k lines across 59
+modules; tests from 95 → 205; frontend tests from 38 → 47. All at 100% coverage.
+
+### New backend capabilities
+- **Observability** — structured JSON logging with request-id correlation, a
+  dependency-free Prometheus metrics registry, and a `/metrics` endpoint; request-timing
+  and access logging middleware.
+- **Resilience** — exponential-backoff retry, a three-state circuit breaker, and a
+  TTL+LRU cache, composed into a `ResilientSearchProvider` wrapper around any backend.
+- **Security** — token-bucket rate limiting and API-key authentication via pure-ASGI
+  middleware, with problem+json rejections and public-path bypass.
+- **Ingestion pipeline** — pluggable feed sources, a field-alias-aware normalizer with
+  reject tracking, dedup + per-source health, and freshness/staleness tracking.
+- **Ranking depth** — synonym query expansion, bounded-Levenshtein spell tolerance, and a
+  business-signal reranker (open-now / proximity / capacity), composed in a `SearchPipeline`.
+- **Errors** — typed exception hierarchy mapped to RFC-7807 `application/problem+json`.
+- **Conversation** — expiring session store and multi-turn follow-up context resolution
+  (a short "what about open ones?" inherits the prior turn's city/category filters).
+
+### New frontend capabilities
+- **FeaturePanel** surfacing active engine capabilities and live session count.
+- **HistoryPanel** showing the multi-turn conversation with one-tap replay.
+- Session-id continuity so the backend threads context across queries.
+
+### API additions
+- `GET /api/metrics` (Prometheus text format).
+- `GET /api/health` now reports active sessions and enabled features.
+- `/search` and `/chat` accept an optional `session_id`.
+- Full middleware stack: request-context → security → CORS.
+
+### Config additions
+- Security: `API_KEYS`, `RATE_LIMIT_RATE`, `RATE_LIMIT_CAPACITY`.
+- Resilience: `RETRY_MAX_ATTEMPTS`, `CIRCUIT_FAIL_MAX`, `CIRCUIT_RESET_TIMEOUT`,
+  `CACHE_TTL`, `CACHE_MAXSIZE`.
+- Ranking toggles: `ENABLE_RERANKING`, `ENABLE_QUERY_EXPANSION`, `ENABLE_SPELL_CORRECTION`.
+- Conversation: `SESSION_TTL`. Observability: `LOG_LEVEL`. Ingestion: `INGEST_STALE_AFTER`.

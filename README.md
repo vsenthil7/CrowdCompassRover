@@ -16,13 +16,19 @@ Agent Builder / Gemini** (multilingual reasoning).
 ## Highlights
 
 - **One agent, three stages:** plan → hybrid search → grounded answer.
+- **Production concerns built in:** structured logging + Prometheus metrics, retry /
+  circuit-breaker / caching resilience, rate limiting + API-key auth, RFC-7807 errors,
+  an ingestion pipeline with freshness tracking, and multi-turn conversation sessions.
+- **Ranking depth:** synonym query expansion, spell tolerance, and business-signal
+  reranking (open-now / proximity / capacity) on top of hybrid keyword+vector+geo search.
 - **Real + mock parity:** every integration (Elastic MCP, Gemini) has real code behind a
   provider interface, switched by a single `APP_MODE` env var — no code change to go live.
 - **Multilingual:** English, Spanish, French, Portuguese, German, Arabic answer support;
   any-language input.
-- **Quality bar:** backend **100%** test coverage (95 tests), frontend **100%** coverage
-  (38 tests), Playwright E2E journeys, strict TypeScript.
-- **Distinctive UI:** a "matchday departure-board" React interface.
+- **Quality bar:** backend **100%** test coverage (205 tests), frontend **100%** coverage
+  (47 tests), Playwright E2E journeys, strict TypeScript.
+- **Distinctive UI:** a "matchday departure-board" React interface with an engine-feature
+  panel and conversation history.
 
 ---
 
@@ -85,17 +91,25 @@ client/provider path before live Elastic access is available.
 crowdcompass-rover/
 ├── backend/            FastAPI + agent + Elastic/Gemini providers (Python 3.12)
 │   ├── app/
-│   │   ├── agent/      planner, answerer, Gemini client, orchestrator
-│   │   ├── services/   hybrid ranker, mock + Elastic search providers, query builder
-│   │   ├── mcp/        Elastic MCP client + local mock MCP server
-│   │   ├── core/       config, embedding, geo, provider factory
-│   │   ├── models/     domain models
-│   │   ├── data/       fixtures + seed
-│   │   └── api/         routes + DI
-│   └── tests/          95 tests @ 100% coverage
+│   │   ├── agent/         planner, answerer, Gemini client, orchestrator
+│   │   ├── services/      hybrid ranker, mock + Elastic search, query builder,
+│   │   │                  resilient wrapper, search pipeline
+│   │   ├── ranking/       query expansion, spell tolerance, business reranker
+│   │   ├── ingestion/     feed sources, normalizer, pipeline + freshness
+│   │   ├── conversation/  session store + multi-turn context
+│   │   ├── resilience/    retry, circuit breaker, TTL+LRU cache
+│   │   ├── observability/ JSON logging, metrics, request middleware
+│   │   ├── security/      rate limiting, API-key auth, middleware
+│   │   ├── errors/        typed exceptions + problem+json handlers
+│   │   ├── mcp/           Elastic MCP client + local mock MCP server
+│   │   ├── core/          config, embedding, geo, provider factory
+│   │   ├── models/        domain models
+│   │   ├── data/          fixtures + seed
+│   │   └── api/           routes + DI
+│   └── tests/          205 tests @ 100% coverage
 ├── frontend/           Vite + React + TS UI
-│   ├── src/            components, hooks, lib, styles
-│   └── tests/          38 tests @ 100% coverage
+│   ├── src/            components (incl. FeaturePanel, HistoryPanel), hooks, lib, styles
+│   └── tests/          47 tests @ 100% coverage
 ├── e2e/                Playwright journeys + dual web-server config
 ├── docs/               architecture, API, user guide (+ screenshots), tracker
 ├── scripts/            screenshot snapshot generator

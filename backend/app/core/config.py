@@ -48,10 +48,41 @@ class Settings(BaseSettings):
 
     cors_origins: str = "http://localhost:5173"
 
+    # Security
+    api_keys: str = ""  # comma-separated; empty disables auth
+    rate_limit_rate: float = 10.0  # tokens/sec per client
+    rate_limit_capacity: float = 20.0
+
+    # Resilience
+    retry_max_attempts: int = 3
+    circuit_fail_max: int = 5
+    circuit_reset_timeout: float = 30.0
+    cache_ttl: float = 60.0
+    cache_maxsize: int = 512
+
+    # Ranking
+    enable_reranking: bool = True
+    enable_query_expansion: bool = True
+    enable_spell_correction: bool = True
+
+    # Ingestion
+    ingest_stale_after: float = 300.0
+
+    # Conversation
+    session_ttl: float = 1800.0
+
+    # Observability
+    log_level: str = "INFO"
+
     @property
     def cors_origin_list(self) -> list[str]:
         """CORS origins as a list."""
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def api_key_set(self) -> set[str]:
+        """Configured API keys as a set (empty disables auth)."""
+        return {k.strip() for k in self.api_keys.split(",") if k.strip()}
 
     @property
     def elastic_is_real(self) -> bool:

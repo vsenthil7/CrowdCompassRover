@@ -1,4 +1,9 @@
-import type { ChatAnswer, GeoPoint, SearchResponse } from "./types";
+import type {
+  ChatAnswer,
+  GeoPoint,
+  HealthStatus,
+  SearchResponse,
+} from "./types";
 
 const BASE = "/api";
 
@@ -27,28 +32,32 @@ export async function search(
   query: string,
   userLocation: GeoPoint | null,
   topK: number,
+  sessionId: string | null = null,
 ): Promise<SearchResponse> {
   return postJson<SearchResponse>("/search", {
     query,
     user_location: userLocation,
     top_k: topK,
+    session_id: sessionId,
   });
 }
 
 export async function chat(
   query: string,
   userLocation: GeoPoint | null,
+  sessionId: string | null = null,
 ): Promise<ChatAnswer> {
   return postJson<ChatAnswer>("/chat", {
     query,
     user_location: userLocation,
+    session_id: sessionId,
   });
 }
 
-export async function health(): Promise<{ status: string; mode: string }> {
+export async function health(): Promise<HealthStatus> {
   const res = await fetch(`${BASE}/health`);
   if (!res.ok) {
     throw new ApiError(res.status, "health failed");
   }
-  return (await res.json()) as { status: string; mode: string };
+  return (await res.json()) as HealthStatus;
 }
