@@ -93,3 +93,34 @@ class ElasticMCPClient:
     async def esql(self, query: str) -> Any:
         """Call the ``esql`` tool with an ES|QL statement."""
         return await self._call_tool("esql", {"query": query})
+
+    async def put_mapping(self, index: str, mapping: dict[str, Any]) -> Any:
+        """Create or update an index with the given mapping.
+
+        Uses the ``create_index`` MCP tool. If the index already exists and the mapping is
+        compatible, ES accepts the call; otherwise the caller must delete and recreate.
+        """
+        return await self._call_tool("create_index", {"index": index, "mappings": mapping})
+
+    async def delete_index(self, index: str) -> Any:
+        """Delete an index (use before re-bootstrapping with a new mapping)."""
+        return await self._call_tool("delete_index", {"index": index})
+
+    async def bulk_index(self, index: str, docs: list[dict[str, Any]]) -> Any:
+        """Bulk-index a list of documents.
+
+        Each document must carry an ``id`` field used as the ES ``_id``. Emits the standard
+        bulk action/source line pairs and calls the ``bulk`` MCP tool.
+        """
+        operations: list[dict[str, Any]] = []
+        for doc in docs:
+            operations.append({"index": {"_index": index, "_id": doc.get("id", "")}})
+            operations.append(doc)
+        return await self._call_tool("bulk", {"operations": operations})
+
+    async def count(self, index: str) -> int:
+        """Return the document count for an index."""
+        result = await self._call_tool("count", {"index": index})
+        if isinstance(result, dict):
+            return int(result.get("count", 0))
+        return 0

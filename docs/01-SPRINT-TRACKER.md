@@ -96,6 +96,7 @@ next begins.
 | S74 | RBAC enforcement at route layer | get_principal/get_policy deps + policy.require() on every elevated route; configurable public baseline; negative 403 tests | ✅ |
 | S75 | Real HTTP webhook sender + SSRF guard | httpx sender behind SSRF guard (loopback/private/link-local/metadata reject), live-mode wiring, injectable transport | ✅ |
 | S76 | Tenant key-scoping across stores | InMemoryEventRepository keys scoped by active tenant; structural cross-tenant isolation; isolation tests | ✅ |
+| S77 | Deploy + integration artifacts | MCP put_mapping/bulk_index/count; RRF hybrid query (open_now boost, tunable weights); Dockerfiles + compose; runbook; enhanced CI; SBOM/Makefile | ✅ |
 
 ---
 
@@ -555,12 +556,35 @@ wired to the repositories — cross-tenant isolation was not actually enforced.
 **Backend 552 / Frontend 174 tests, both 100%.** Production build clean. Backend-only pass;
 frontend unchanged.
 
+### S77 — Deployment + integration artifacts (Perplexity P1, P2.S1, P2.S3, P5.S3, P6.S1, C4) ✅
+Sandbox-feasible playbook steps that need no live cloud/credentials:
+- **P2.S1** — `ElasticMCPClient.put_mapping` / `delete_index` / `bulk_index` / `count`
+  (the methods the seed/bootstrap path needs), with transport-stub tests asserting the exact
+  MCP tool name + arguments and response parsing.
+- **P2.S3** — `build_query` deepened to Elasticsearch 8.x RRF (`rank.rrf`), a soft
+  `open_now` boost (should-clause, never a hard filter), and injectable
+  keyword/vector weights for a future relevance-tuning layer.
+- **P1.S1-S3** — multi-stage non-root backend `Dockerfile`, nginx-served frontend
+  `Dockerfile` + `nginx.conf`, root `docker-compose.yml` (backend+frontend by default; ES +
+  Redis + hybrid backend behind a `live` profile). Valid YAML; build/run is environment-
+  gated (no Docker daemon in this sandbox).
+- **P5.S3** — `docs/06-RUNBOOK.md` (164 lines): key rotation, breaker/bulkhead response,
+  webhook/outbox triage, tenant-isolation + audit-chain verification, retention, GDPR.
+- **P6.S1** — enhanced `.github/workflows/ci.yml`: lint + pip-audit, backend 100% gate,
+  frontend coverage, e2e, Docker build + container smoke-test, CycloneDX SBOM on release,
+  and an opt-in live-integration job gated on secrets.
+- **C4** — `cyclonedx-bom` + `pip-audit` added to dev deps and `Makefile` `sbom` / `pip-audit`
+  targets; SBOM generation verified locally (189 components, validates).
+
+**Backend 565 / Frontend 174 tests, both 100%.** New backend code (MCP methods, RRF builder)
+fully covered; deploy/CI/runbook are artifacts validated structurally.
+
 ---
 
 ## Coverage Ledger
 | Layer | Tool | Target | Latest |
 |-------|------|-------:|-------:|
-| Backend | pytest-cov | 100% | ✅ 100.00% (552 tests, 3885 stmts) |
+| Backend | pytest-cov | 100% | ✅ 100.00% (565 tests, 3908 stmts) |
 | Frontend | vitest --coverage | 100% | ✅ 100.00% (174 tests) |
 | E2E flows | Playwright | 100% of journeys | ✅ 8 journeys (browser run pending CDN access; flows validated via live API) |
 

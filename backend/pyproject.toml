@@ -21,6 +21,8 @@ dev = [
     "coverage>=7.5",
     "httpx>=0.27",
     "asgi-lifespan>=2.1",
+    "cyclonedx-bom>=4.4",
+    "pip-audit>=2.7",
 ]
 
 [tool.setuptools.packages.find]

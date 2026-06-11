@@ -73,3 +73,39 @@ the same way this round did.
 The honest bar remains: this is mock-first with live integrations by config. This round made
 the security and multi-tenancy posture real (enforced, not just present), which is the part
 of "enterprise-grade" most worth fixing first.
+
+---
+
+## Round 2 — Deployment + integration artifacts (sandbox-feasible playbook steps)
+
+Continuing the same playbook, this round closed every remaining step that does **not** need
+live cloud/credentials:
+
+- **P2.S1** — `ElasticMCPClient` gained `put_mapping`, `delete_index`, `bulk_index`, `count`
+  (the methods the Elastic seed/bootstrap path requires). Transport-stub tests assert the
+  exact MCP tool name + arguments and the response parsing.
+- **P2.S3** — `build_query` deepened to Elasticsearch 8.x Reciprocal Rank Fusion
+  (`rank.rrf`), a soft `open_now` boost (a `should` clause — boost, never a hard filter), and
+  injectable keyword/vector weights so a relevance-tuning layer can override them. Existing
+  query-shape tests still pass; new tests cover RRF, the boost, weight passthrough, and the
+  kNN-`k` window cap.
+- **P1.S1-S3** — multi-stage non-root backend `Dockerfile`; nginx-served frontend
+  `Dockerfile` + `nginx.conf`; root `docker-compose.yml` (backend + frontend by default; ES +
+  Redis + hybrid backend behind a `--profile live`). All valid; building/running is
+  environment-gated (no Docker daemon here).
+- **P5.S3** — `docs/06-RUNBOOK.md` (164 lines): key rotation, breaker/bulkhead response,
+  webhook/outbox triage, tenant-isolation + audit-chain verification, retention, GDPR.
+- **P6.S1** — enhanced `.github/workflows/ci.yml`: lint + pip-audit, backend 100% gate,
+  frontend coverage, e2e, Docker build + container smoke-test, CycloneDX SBOM on release, and
+  an opt-in live-integration job gated on repository secrets.
+- **C4** — `cyclonedx-bom` + `pip-audit` added to dev deps; `Makefile` `sbom` / `pip-audit`
+  targets. SBOM generation was run locally and verified (189 components, schema-valid).
+
+**Backend 552 -> 565 tests, still 100% coverage. Frontend 174 @ 100%.**
+
+### Still infra-blocked (cannot complete in this sandbox, need real cloud/credentials)
+P2.S2 / P2.S4 (live Elastic seed + integration tests), P4.S1-S4 (Firestore, Redis quotas),
+P5.S2 / C2 (Secret Manager), C5 (load test), C6 (DR/backup), C7 (PagerDuty/Slack), and the
+Section-7 "definition of done" items that require `docker compose up`, `gcloud run`,
+`APP_MODE=real` passes, or a CI runner. The Dockerfiles, compose, CI, runbook, and SBOM
+tooling above are exactly what those steps consume once an environment exists.

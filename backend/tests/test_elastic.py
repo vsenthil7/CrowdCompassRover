@@ -210,3 +210,136 @@ async def test_provider_search_non_dict_raw():
     p = ElasticSearchProvider(_StubClient(search_res="oops"), "a")
     results = await p.search(_plan())
     assert results == []
+
+
+# --- P2.S1: put_mapping / delete_index / bulk_index / count ---
+
+
+def _capture_transport(captured: dict, result_payload):
+    """A transport that records the outgoing MCP call and returns result_payload."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        captured["name"] = body["params"]["name"]
+        captured["arguments"] = body["params"]["arguments"]
+        return httpx.Response(
+            200,
+            json={
+                "jsonrpc": "2.0",
+                "id": body["id"],
+                "result": {"content": [{"type": "text", "text": json.dumps(result_payload)}]},
+            },
+        )
+
+    return httpx.MockTransport(handler)
+
+
+async def test_put_mapping_calls_create_index():
+    captured: dict = {}
+    client = ElasticMCPClient(
+        "http://mcp", "key", transport=_capture_transport(captured, {"acknowledged": True})
+    )
+    res = await client.put_mapping("cc-city-events", {"properties": {"name": {"type": "text"}}})
+    assert res == {"acknowledged": True}
+    assert captured["name"] == "create_index"
+    assert captured["arguments"]["index"] == "cc-city-events"
+    assert captured["arguments"]["mappings"] == {"properties": {"name": {"type": "text"}}}
+    await client.aclose()
+
+
+async def test_delete_index_calls_delete_tool():
+    captured: dict = {}
+    client = ElasticMCPClient(
+        "http://mcp", "key", transport=_capture_transport(captured, {"acknowledged": True})
+    )
+    await client.delete_index("cc-city-events")
+    assert captured["name"] == "delete_index"
+    assert captured["arguments"] == {"index": "cc-city-events"}
+    await client.aclose()
+
+
+async def test_bulk_index_emits_action_source_pairs():
+    captured: dict = {}
+    client = ElasticMCPClient(
+        "http://mcp", "key", transport=_capture_transport(captured, {"errors": False, "items": []})
+    )
+    docs = [{"id": "a", "name": "A"}, {"id": "b", "name": "B"}]
+    res = await client.bulk_index("cc-city-events", docs)
+    assert res == {"errors": False, "items": []}
+    ops = captured["arguments"]["operations"]
+    # action line + source line per doc => 4 entries
+    assert len(ops) == 4
+    assert ops[0] == {"index": {"_index": "cc-city-events", "_id": "a"}}
+    assert ops[1] == {"id": "a", "name": "A"}
+    assert ops[2] == {"index": {"_index": "cc-city-events", "_id": "b"}}
+    await client.aclose()
+
+
+async def test_bulk_index_missing_id_defaults_empty():
+    captured: dict = {}
+    client = ElasticMCPClient(
+        "http://mcp", "key", transport=_capture_transport(captured, {"errors": False})
+    )
+    await client.bulk_index("idx", [{"name": "no-id"}])
+    ops = captured["arguments"]["operations"]
+    assert ops[0] == {"index": {"_index": "idx", "_id": ""}}
+    await client.aclose()
+
+
+async def test_count_returns_int():
+    captured: dict = {}
+    client = ElasticMCPClient("http://mcp", "key", transport=_capture_transport(captured, {"count": 42}))
+    n = await client.count("cc-city-events")
+    assert n == 42
+    assert captured["name"] == "count"
+    await client.aclose()
+
+
+async def test_count_non_dict_result_returns_zero():
+    captured: dict = {}
+    client = ElasticMCPClient("http://mcp", "key", transport=_capture_transport(captured, [1, 2, 3]))
+    n = await client.count("cc-city-events")
+    assert n == 0
+    await client.aclose()
+
+
+# --- P2.S3: RRF ranking + open_now boost + tunable weights ---
+
+
+def test_rrf_rank_present():
+    body = build_query(_plan())
+    assert "rank" in body
+    assert body["rank"]["rrf"]["window_size"] == 100
+    assert body["rank"]["rrf"]["rank_constant"] == 60
+
+
+def test_open_now_boost_in_should():
+    body = build_query(_plan(filters=SearchFilters(open_now=True)))
+    should = body["query"]["bool"].get("should", [])
+    assert any("open_now" in str(c) for c in should)
+    assert body["query"]["bool"]["minimum_should_match"] == 0
+
+
+def test_no_open_now_no_should():
+    body = build_query(_plan())
+    assert "should" not in body["query"]["bool"]
+
+
+def test_weights_passed_to_clauses():
+    body = build_query(_plan(), keyword_weight=0.3, vector_weight=0.7)
+    assert body["knn"]["boost"] == 0.7
+    assert body["query"]["bool"]["must"][0]["multi_match"]["boost"] == 0.3
+
+
+def test_knn_k_capped_by_window():
+    body = build_query(_plan(top_k=40), rrf_window_size=50)
+    assert body["knn"]["k"] == 50  # min(top_k*2=80, window=50)
+
+
+def test_knn_k_uses_double_top_k_when_below_window():
+    body = build_query(_plan(top_k=5), rrf_window_size=100)
+    assert body["knn"]["k"] == 10  # min(10, 100)
+
+
+def test_no_filter_clauses_when_empty():
+    body = build_query(_plan())
+    assert body["query"]["bool"]["filter"] == []
