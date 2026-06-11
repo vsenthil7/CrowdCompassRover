@@ -374,6 +374,10 @@ describe("App", () => {
     mockedApi.auditLog.mockResolvedValue({ verified: true, count: 0, entries: [] });
     mockedApi.sloReport.mockResolvedValue({ services: [] });
     mockedApi.versionInfo.mockResolvedValue({ current: "v1", supported: ["v1"] });
+    mockedApi.outboxStats.mockResolvedValue({
+      stats: { pending: 0, delivered: 0, failed: 0, dead: 0 },
+      dead_letters: [],
+    });
     render(<App />);
     fireEvent.click(screen.getByTestId("admin-toggle"));
     await waitFor(() => expect(screen.getByTestId("admin-dashboard")).toBeInTheDocument());

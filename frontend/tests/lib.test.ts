@@ -188,4 +188,19 @@ describe("api client", () => {
     const v = await api.versionInfo();
     expect(v.current).toBe("v1");
   });
+
+  it("outboxStats fetches stats", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ stats: { pending: 1, delivered: 2, failed: 0, dead: 0 }, dead_letters: [] }),
+    });
+    const o = await api.outboxStats();
+    expect(o.stats.delivered).toBe(2);
+  });
+
+  it("outboxRelay posts", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ delivered: 1, failed: 0, dead: 0 }) });
+    const r = await api.outboxRelay();
+    expect(r.delivered).toBe(1);
+  });
 });

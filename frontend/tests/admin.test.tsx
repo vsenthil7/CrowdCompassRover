@@ -59,6 +59,8 @@ describe("AdminDashboard", () => {
         audit={audit}
         slo={null}
         version={null}
+        outbox={null}
+        onRelay={() => {}}
         loading={false}
         busy={false}
         error={null}
@@ -85,6 +87,8 @@ describe("AdminDashboard", () => {
           ],
         }}
         version={{ current: "v1", supported: ["v1"] }}
+        outbox={null}
+        onRelay={() => {}}
         loading={false}
         busy={false}
         error={null}
@@ -98,6 +102,63 @@ describe("AdminDashboard", () => {
     expect(screen.getByTestId("version-badge")).toHaveTextContent("API v1");
   });
 
+  it("renders the outbox panel with dead letters and fires relay", () => {
+    const onRelay = vi.fn();
+    render(
+      <AdminDashboard
+        status={null}
+        usage={null}
+        audit={null}
+        slo={null}
+        version={null}
+        outbox={{
+          stats: { pending: 2, delivered: 5, failed: 1, dead: 2 },
+          dead_letters: [
+            { id: "d1", topic: "search.performed", attempts: 5, error: "timeout" },
+            { id: "d2", topic: "route.requested", attempts: 5, error: null },
+          ],
+        }}
+        loading={false}
+        busy={false}
+        error={null}
+        onRefresh={() => {}}
+        onReindex={() => {}}
+        onFlush={() => {}}
+        onRelay={onRelay}
+      />,
+    );
+    expect(screen.getByTestId("outbox-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("outbox-pending")).toHaveTextContent("Pending 2");
+    expect(screen.getAllByTestId("outbox-dead-row")).toHaveLength(2);
+    fireEvent.click(screen.getByTestId("outbox-relay"));
+    expect(onRelay).toHaveBeenCalled();
+  });
+
+  it("renders the outbox panel without dead letters", () => {
+    render(
+      <AdminDashboard
+        status={null}
+        usage={null}
+        audit={null}
+        slo={null}
+        version={null}
+        outbox={{
+          stats: { pending: 0, delivered: 0, failed: 0, dead: 0 },
+          dead_letters: [],
+        }}
+        loading={false}
+        busy={true}
+        error={null}
+        onRefresh={() => {}}
+        onReindex={() => {}}
+        onFlush={() => {}}
+        onRelay={() => {}}
+      />,
+    );
+    expect(screen.queryByTestId("outbox-dead-list")).toBeNull();
+    expect(screen.getByTestId("outbox-relay")).toBeDisabled();
+  });
+
   it("shows tampered audit state", () => {
     render(
       <AdminDashboard
@@ -106,6 +167,8 @@ describe("AdminDashboard", () => {
         audit={{ ...audit, verified: false }}
         slo={null}
         version={null}
+        outbox={null}
+        onRelay={() => {}}
         loading={false}
         busy={false}
         error={null}
@@ -126,6 +189,8 @@ describe("AdminDashboard", () => {
         audit={null}
         slo={null}
         version={null}
+        outbox={null}
+        onRelay={() => {}}
         loading={true}
         busy={false}
         error="boom"
@@ -148,6 +213,8 @@ describe("AdminDashboard", () => {
         audit={null}
         slo={null}
         version={null}
+        outbox={null}
+        onRelay={() => {}}
         loading={false}
         busy={false}
         error={null}
@@ -171,6 +238,8 @@ describe("AdminDashboard", () => {
         audit={null}
         slo={null}
         version={null}
+        outbox={null}
+        onRelay={() => {}}
         loading={false}
         busy={false}
         error={null}
@@ -190,6 +259,8 @@ describe("AdminDashboard", () => {
         audit={null}
         slo={null}
         version={null}
+        outbox={null}
+        onRelay={() => {}}
         loading={false}
         busy={true}
         error={null}
@@ -211,6 +282,11 @@ describe("useAdmin", () => {
     mockedApi.auditLog = vi.fn().mockResolvedValue(audit);
     mockedApi.sloReport = vi.fn().mockResolvedValue({ services: [] });
     mockedApi.versionInfo = vi.fn().mockResolvedValue({ current: "v1", supported: ["v1"] });
+    mockedApi.outboxStats = vi.fn().mockResolvedValue({
+      stats: { pending: 0, delivered: 0, failed: 0, dead: 0 },
+      dead_letters: [],
+    });
+    mockedApi.outboxRelay = vi.fn().mockResolvedValue({ delivered: 0, failed: 0, dead: 0 });
     mockedApi.reindex = vi.fn().mockResolvedValue({ indexed: 16, healthy: true });
     mockedApi.flushCache = vi.fn().mockResolvedValue({ flushed: true });
   });
@@ -225,6 +301,25 @@ describe("useAdmin", () => {
     expect(result.current.state.audit?.verified).toBe(true);
     expect(result.current.state.slo).not.toBeNull();
     expect(result.current.state.version?.current).toBe("v1");
+    expect(result.current.state.outbox).not.toBeNull();
+  });
+
+  it("relayOutbox relays then refreshes", async () => {
+    const { result } = renderHook(() => useAdmin());
+    await act(async () => {
+      await result.current.relayOutbox();
+    });
+    expect(mockedApi.outboxRelay).toHaveBeenCalled();
+    expect(mockedApi.outboxStats).toHaveBeenCalled();
+  });
+
+  it("relayOutbox captures errors", async () => {
+    mockedApi.outboxRelay = vi.fn().mockRejectedValue(new Error("relay fail"));
+    const { result } = renderHook(() => useAdmin());
+    await act(async () => {
+      await result.current.relayOutbox();
+    });
+    expect(result.current.state.error).toBe("relay fail");
   });
 
   it("refresh captures errors", async () => {

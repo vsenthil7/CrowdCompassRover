@@ -87,6 +87,10 @@ next begins.
 | S65 | Frontend client | SLO/version types + API client methods | ✅ |
 | S66 | SLO + version UI | SloPanel, VersionBadge, dashboard wiring | ✅ |
 | S67 | Frontend tests | Tests for new components/hook; restore 100% on both | ✅ |
+| S68 | Wiring: outbox bridge | Event bus → outbox → webhook relay made load-bearing | ✅ |
+| S69 | Wiring: bulkhead + SLO | Bulkhead fronts search/chat; SLO records failures | ✅ |
+| S70 | Tenant scoped store | Structural per-tenant data partitioning | ✅ |
+| S71 | Frontend outbox panel | OutboxPanel + relay action; integration tests; 100% | ✅ |
 
 ---
 
@@ -417,11 +421,43 @@ the dashboard rendering. **Backend 422 / Frontend 124 tests, both 100%.**
 
 ---
 
+## Wiring & Integration Hardening (v1.6.0)
+
+> A self-review found three previously-built modules were present and unit-tested but **not
+> actually load-bearing** in the request path. This round makes them real and proves it with
+> end-to-end integration tests, rather than adding new surface.
+
+### S68 — Outbox bridge (made load-bearing) ✅
+`events/outbox_bridge.py`: `OutboxBridge` subscribes to the event bus and durably enqueues
+published domain events into the outbox; `WebhookOutboxSink` drains the outbox to signed
+webhook subscribers with retry/dead-lettering. Previously the outbox was never written to.
+New `/admin/outbox/relay` endpoint drives the relay. Verified end to end: search → 1
+pending → relay → 1 delivered.
+
+### S69 — Bulkhead + SLO (made load-bearing) ✅
+The orchestrator now runs every search/chat retrieval through the bulkhead
+(`_run_pipeline`), proven by a test where a saturated bulkhead makes search raise
+`BulkheadFullError`. The SLO tracker now records **failures** as well as successes (it was
+success-only, hence meaningless before).
+
+### S70 — Tenant scoped store ✅
+`tenancy/scoped_store.py`: `TenantScopedStore` enforces per-tenant partitioning structurally
+(outer key = tenant), with isolation tests proving no cross-tenant reads — turning tenancy
+from advisory into enforced.
+
+### S71 — Frontend outbox panel ✅
+`OutboxPanel` (pending/delivered/failed/dead counts, dead-letter list, "Relay now" action)
+wired into the admin dashboard; `useAdmin` gained outbox state + `relayOutbox`. Added
+integration tests for the bridge, sink, scoped store, and wired orchestrator behaviour.
+**Backend 436 / Frontend 130 tests, both 100%.**
+
+---
+
 ## Coverage Ledger
 | Layer | Tool | Target | Latest |
 |-------|------|-------:|-------:|
-| Backend | pytest-cov | 100% | ✅ 100.00% (422 tests, 3377 stmts) |
-| Frontend | vitest --coverage | 100% | ✅ 100.00% (124 tests) |
+| Backend | pytest-cov | 100% | ✅ 100.00% (436 tests, 3472 stmts) |
+| Frontend | vitest --coverage | 100% | ✅ 100.00% (130 tests) |
 | E2E flows | Playwright | 100% of journeys | ✅ 8 journeys (browser run pending CDN access; flows validated via live API) |
 
 ## Access Ledger (live)

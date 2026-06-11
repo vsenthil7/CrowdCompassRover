@@ -303,3 +303,24 @@ Apply retention policies: `{ "swept": [ { name, removed } ] }`.
 `/api/usage/{tenant}` validates and normalises the tenant id (lower-cased; rejected with
 400 `invalid_tenant` / `unknown_tenant` when malformed or outside the allow-list). A
 `TenantContext` is propagated per request and namespaces scoped storage keys.
+
+---
+
+## Wiring & integration (v1.6.0)
+
+### POST `/api/admin/outbox/relay`
+Drains pending outbox messages to webhook subscribers (the relay step). Returns
+`{ delivered, failed, dead }`. Published domain events (search performed, route requested,
+zero result) are durably enqueued by the outbox bridge; this endpoint (or the scheduler in
+production) delivers them — so a delivery failure retries rather than being lost.
+
+### Reliability flow
+```
+agent → EventBus.publish(event)
+      → OutboxBridge enqueues into Outbox (durable)
+relay → Outbox.relay(WebhookOutboxSink)
+      → WebhookDispatcher delivers to subscribers (HMAC-signed, retried, dead-lettered)
+```
+Search and chat retrieval now run behind a concurrency **bulkhead** (fast 503 when
+saturated), and the **SLO tracker** records both successes and failures for accurate error
+budgets.

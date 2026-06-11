@@ -12,6 +12,7 @@ import time
 from app.agent.answerer import Answerer
 from app.agent.planner import Planner
 from app.analytics.recorder import AnalyticsRecorder
+from app.concurrency.bulkhead import Bulkhead
 from app.conversation.context import apply_context
 from app.conversation.session import SessionStore
 from app.enrichment.routes import RouteProvider, RouteResult, TravelMode
@@ -44,6 +45,7 @@ class RoverAgent:
         tracer: Tracer | None = None,
         events: EventBus | None = None,
         slo: SloTracker | None = None,
+        bulkhead: "Bulkhead | None" = None,
         *,
         clock=time.perf_counter,
     ) -> None:
@@ -56,7 +58,14 @@ class RoverAgent:
         self._tracer = tracer or Tracer()
         self._events = events
         self._slo = slo
+        self._bulkhead = bulkhead
         self._clock = clock
+
+    async def _run_pipeline(self, plan: QueryPlan):
+        """Run the search pipeline, behind the bulkhead when one is configured."""
+        if self._bulkhead is not None:
+            return await self._bulkhead.run(lambda: self._pipeline.run(plan))
+        return await self._pipeline.run(plan)
 
     async def _plan_with_context(
         self, query: str, user_location: GeoPoint | None, top_k: int, session_id: str | None
@@ -116,7 +125,12 @@ class RoverAgent:
                 query, user_location, effective_k, session_id
             )
             with self._tracer.start("retrieve"):
-                results = await self._pipeline.run(plan)
+                try:
+                    results = await self._run_pipeline(plan)
+                except Exception:
+                    if self._slo is not None:
+                        self._slo.record("search", False)
+                    raise
             span.set_attribute("results", len(results))
             await self._emit(plan, len(results), (self._clock() - start) * 1000)
             if self._slo is not None:
@@ -152,7 +166,12 @@ class RoverAgent:
         with self._tracer.start("chat"):
             start = self._clock()
             plan = await self._plan_with_context(query, user_location, top_k, session_id)
-            results = await self._pipeline.run(plan)
+            try:
+                results = await self._run_pipeline(plan)
+            except Exception:
+                if self._slo is not None:
+                    self._slo.record("chat", False)
+                raise
             await self._emit(plan, len(results), (self._clock() - start) * 1000)
             if self._slo is not None:
                 self._slo.record("chat", True)

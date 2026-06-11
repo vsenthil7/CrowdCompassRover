@@ -72,12 +72,14 @@ export function App() {
             audit={admin.state.audit}
             slo={admin.state.slo}
             version={admin.state.version}
+            outbox={admin.state.outbox}
             loading={admin.state.loading}
             busy={admin.state.busy}
             error={admin.state.error}
             onRefresh={admin.refresh}
             onReindex={admin.reindex}
             onFlush={admin.flushCache}
+            onRelay={admin.relayOutbox}
           />
         ) : null}
 

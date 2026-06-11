@@ -32,8 +32,10 @@ Agent Builder / Gemini** (multilingual reasoning).
 - **Real + mock parity:** every integration (Elastic MCP, Gemini, Google Routes) has real
   code behind a provider interface, switched by `APP_MODE` + credentials — no code change.
 - **Multilingual:** English, Spanish, French, Portuguese, German, Arabic answer support.
-- **Quality bar:** backend **100%** coverage (422 tests), frontend **100%** coverage
-  (124 tests), Playwright E2E journeys, strict TypeScript.
+- **Quality bar:** backend **100%** coverage (436 tests), frontend **100%** coverage
+  (130 tests), Playwright E2E journeys, strict TypeScript. Domain events flow through a
+  durable outbox to signed webhooks; search runs behind a concurrency bulkhead; SLOs track
+  real error budgets — all covered by end-to-end integration tests.
 - **Distinctive UI:** a "matchday departure-board" React interface with engine-feature
   panel, conversation history, route options, saved searches, pagination, and an accessible
   admin/ops dashboard (status, usage, SLO budgets, audit, API version) with an error
@@ -140,12 +142,12 @@ crowdcompass-rover/
 │   │   ├── models/        domain models
 │   │   ├── data/          fixtures + seed
 │   │   └── api/           routes + DI
-│   └── tests/          422 tests @ 100% coverage
+│   └── tests/          436 tests @ 100% coverage
 ├── frontend/           Vite + React + TS UI
 │   ├── src/            components (Result/Plan/Answer/Feature/History/Route/Saved panels,
-│   │                   Pagination, AdminDashboard, UsageView, SloPanel, VersionBadge,
-│   │                   ErrorBoundary), hooks, lib, styles
-│   └── tests/          124 tests @ 100% coverage
+│   │                   Pagination, AdminDashboard, UsageView, SloPanel, OutboxPanel,
+│   │                   VersionBadge, ErrorBoundary), hooks, lib, styles
+│   └── tests/          130 tests @ 100% coverage
 ├── e2e/                Playwright journeys + dual web-server config
 ├── docs/               architecture, API, user guide (+ screenshots), tracker
 ├── scripts/            screenshot snapshot generator

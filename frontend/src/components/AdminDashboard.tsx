@@ -1,7 +1,8 @@
-import type { AdminStatus, AuditReport, SloReport, VersionInfo } from "../lib/types";
+import type { AdminStatus, AuditReport, OutboxStats, SloReport, VersionInfo } from "../lib/types";
 import { UsageView } from "./UsageView";
 import { SloPanel } from "./SloPanel";
 import { VersionBadge } from "./VersionBadge";
+import { OutboxPanel } from "./OutboxPanel";
 import { formatAge, formatPercent, onActivate } from "../lib/a11y";
 import type { UsageInfo } from "../lib/types";
 
@@ -11,12 +12,14 @@ interface Props {
   audit: AuditReport | null;
   slo: SloReport | null;
   version: VersionInfo | null;
+  outbox: OutboxStats | null;
   loading: boolean;
   busy: boolean;
   error: string | null;
   onRefresh: () => void;
   onReindex: () => void;
   onFlush: () => void;
+  onRelay: () => void;
 }
 
 export function AdminDashboard({
@@ -25,12 +28,14 @@ export function AdminDashboard({
   audit,
   slo,
   version,
+  outbox,
   loading,
   busy,
   error,
   onRefresh,
   onReindex,
   onFlush,
+  onRelay,
 }: Props) {
   return (
     <section className="admin" data-testid="admin-dashboard" aria-label="Admin dashboard">
@@ -87,6 +92,8 @@ export function AdminDashboard({
           <SloPanel slo={slo} />
         </div>
       ) : null}
+
+      {outbox ? <OutboxPanel outbox={outbox} onRelay={onRelay} busy={busy} /> : null}
 
       <div className="admin__actions">
         <button className="btn" onClick={onReindex} disabled={busy} data-testid="admin-reindex">

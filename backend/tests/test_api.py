@@ -294,6 +294,25 @@ async def test_outbox_stats_endpoint(client):
     assert "dead_letters" in r.json()
 
 
+async def test_outbox_relay_delivers_to_subscriber(client):
+    # Register a subscriber for search.performed, run a search (enqueues via bridge),
+    # then relay — exercises the factory-built webhook sender end to end.
+    create = await client.post(
+        "/api/webhooks",
+        json={
+            "tenant": "default",
+            "url": "https://example.com/hook",
+            "secret": "supersecret",
+            "events": ["search.performed"],
+        },
+    )
+    assert create.status_code == 200
+    await client.post("/api/search", json={"query": "halal food open now"})
+    r = await client.post("/api/admin/outbox/relay")
+    assert r.status_code == 200
+    assert r.json()["delivered"] >= 1
+
+
 async def test_bulkhead_stats_endpoint(client):
     r = await client.get("/api/admin/bulkhead")
     assert r.status_code == 200
@@ -326,6 +345,9 @@ async def test_shutdown_when_uninitialized_is_safe():
 async def test_shutdown_closes_closables():
     closed = {"v": False}
 
+    async def _noop_sender(url, headers, body):
+        return 200
+
     class _C:
         async def aclose(self):
             closed["v"] = True
@@ -354,6 +376,8 @@ async def test_shutdown_closes_closables():
     from app.tenancy.context import TenantResolver
     from app.versioning.registry import default_registry
     from app.outbox.store import Outbox
+    from app.events.outbox_bridge import WebhookOutboxSink
+    from app.webhooks.dispatcher import WebhookDispatcher
     from app.secrets.provider import EnvSecretProvider
     from app.concurrency.bulkhead import Bulkhead
     from app.retention.sweeper import RetentionSweeper
@@ -393,6 +417,7 @@ async def test_shutdown_closes_closables():
         tenants=TenantResolver(),
         versions=default_registry(),
         outbox=Outbox(),
+        outbox_sink=WebhookOutboxSink(WebhookDispatcher(WebhookRegistry(), _noop_sender)),
         secrets=EnvSecretProvider(),
         bulkhead=Bulkhead("test"),
         retention=RetentionSweeper(),

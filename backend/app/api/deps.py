@@ -117,6 +117,11 @@ def get_outbox():
     return _get_components().outbox
 
 
+def get_outbox_sink():
+    """Return the webhook outbox sink (FastAPI dependency)."""
+    return _get_components().outbox_sink
+
+
 def get_bulkhead():
     """Return the search bulkhead (FastAPI dependency)."""
     return _get_components().bulkhead

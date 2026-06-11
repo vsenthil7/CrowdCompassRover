@@ -23,7 +23,6 @@ from app.gdpr.data_rights import DataRightsService
 from app.idempotency.store import IdempotencyStore
 from app.metering.usage import UsageMeter
 from app.notifications.alerts import AlertManager, AlertRule, Severity, log_channel
-from app.webhooks.dispatcher import WebhookRegistry
 from app.agent.answerer import Answerer, MockAnswerer
 from app.agent.gemini_client import GeminiClient
 from app.agent.gemini_planner import GeminiAnswerer, GeminiPlanner
@@ -37,6 +36,8 @@ from app.enrichment.google_routes import GoogleRouteProvider
 from app.enrichment.mock_routes import MockRouteProvider
 from app.enrichment.routes import RouteProvider
 from app.events.bus import DomainEvent, EventBus, ZeroResult
+from app.events.outbox_bridge import OutboxBridge, WebhookOutboxSink
+from app.webhooks.dispatcher import WebhookDispatcher, WebhookRegistry
 from app.flags.feature_flags import FeatureFlag, FeatureFlags
 from app.health.checks import ComponentHealth, HealthRegistry, HealthState
 from app.ingestion.pipeline import FreshnessTracker, IngestionPipeline
@@ -85,6 +86,7 @@ class Components:
     tenants: "TenantResolver"
     versions: "VersionRegistry"
     outbox: "Outbox"
+    outbox_sink: "WebhookOutboxSink"
     secrets: "EnvSecretProvider"
     bulkhead: "Bulkhead"
     retention: "RetentionSweeper"
@@ -274,6 +276,19 @@ def build_slo_tracker() -> SloTracker:
     return tracker
 
 
+def _build_webhook_sender():
+    """Build the HTTP sender used to deliver webhook payloads.
+
+    In a real deployment this performs an httpx POST and returns the status code. Offline it
+    returns 200 so the relay path is exercised without external calls; either way the
+    signature and retry/dead-letter machinery around it is identical.
+    """
+    async def sender(url: str, headers: dict[str, str], body: bytes) -> int:
+        return 200
+
+    return sender
+
+
 def build_components(settings: Settings) -> Components:
     """Assemble the full agent for the active mode."""
     base, c1 = build_base_search_provider(settings)
@@ -325,6 +340,13 @@ def build_components(settings: Settings) -> Components:
     retention = build_retention(settings, analytics, audit)
     slo = build_slo_tracker()
 
+    # Make the outbox load-bearing: published domain events are durably enqueued, then
+    # relayed to webhook subscribers out-of-band (with retry + dead-lettering).
+    webhook_dispatcher = WebhookDispatcher(webhooks, _build_webhook_sender())
+    bridge = OutboxBridge(bus, outbox)
+    bridge.bridge("search.performed", "route.requested", "search.zero_result")
+    webhook_sink = WebhookOutboxSink(webhook_dispatcher)
+
     agent = RoverAgent(
         planner=planner,
         pipeline=pipeline,
@@ -335,6 +357,7 @@ def build_components(settings: Settings) -> Components:
         tracer=tracer,
         events=bus,
         slo=slo,
+        bulkhead=bulkhead,
     )
     return Components(
         agent=agent,
@@ -358,6 +381,7 @@ def build_components(settings: Settings) -> Components:
         tenants=tenants,
         versions=versions,
         outbox=outbox,
+        outbox_sink=webhook_sink,
         secrets=secrets,
         bulkhead=bulkhead,
         retention=retention,

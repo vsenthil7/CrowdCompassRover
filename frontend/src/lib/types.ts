@@ -121,6 +121,17 @@ export interface VersionInfo {
   supported: string[];
 }
 
+export interface OutboxStats {
+  stats: { pending: number; delivered: number; failed: number; dead: number };
+  dead_letters: { id: string; topic: string; attempts: number; error: string | null }[];
+}
+
+export interface RelayResult {
+  delivered: number;
+  failed: number;
+  dead: number;
+}
+
 export interface Citation {
   event_id: string;
   name: string;

@@ -4,6 +4,8 @@ import type {
   ChatAnswer,
   GeoPoint,
   HealthStatus,
+  OutboxStats,
+  RelayResult,
   RouteResponse,
   SavedSearch,
   SearchResponse,
@@ -100,6 +102,14 @@ export async function sloReport(): Promise<SloReport> {
 
 export async function versionInfo(): Promise<VersionInfo> {
   return getJson<VersionInfo>("/version");
+}
+
+export async function outboxStats(): Promise<OutboxStats> {
+  return getJson<OutboxStats>("/admin/outbox");
+}
+
+export async function outboxRelay(): Promise<RelayResult> {
+  return postJson<RelayResult>("/admin/outbox/relay", {});
 }
 
 export async function chat(

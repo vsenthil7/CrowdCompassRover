@@ -20,6 +20,7 @@ from app.api.deps import (
     get_idempotency,
     get_meter,
     get_outbox,
+    get_outbox_sink,
     get_retention,
     get_saved_searches,
     get_sessions,
@@ -357,6 +358,12 @@ async def slo_report(tracker=Depends(get_slo)) -> dict:
 async def version_info(registry=Depends(get_versions)) -> dict:
     """Supported API versions and the current one."""
     return {"current": registry.current, "supported": registry.supported_names()}
+
+
+@router.post("/admin/outbox/relay")
+async def outbox_relay(outbox=Depends(get_outbox), sink=Depends(get_outbox_sink)) -> dict:
+    """Drain pending outbox messages to webhook subscribers (relay step)."""
+    return await outbox.relay(sink)
 
 
 @router.get("/admin/outbox")

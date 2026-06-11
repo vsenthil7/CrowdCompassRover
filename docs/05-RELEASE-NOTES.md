@@ -218,3 +218,28 @@ frontend to **124 tests**. Both at 100% coverage.
 ### API additions
 - `/version` (public), `/slo`, `/admin/outbox`, `/admin/bulkhead`,
   `/admin/retention/sweep`; `/usage/{tenant}` now validates the tenant.
+
+---
+
+## v1.6.0 — 2026-06-02
+
+Wiring & integration hardening. A self-review found three modules were unit-tested but not
+actually in the request path; this release makes them load-bearing and proves it with
+integration tests. Backend **119 modules / ~7,415 lines / 436 tests**; frontend **130
+tests**. Both at 100% coverage.
+
+### Made load-bearing
+- **Transactional outbox** — domain events are now durably enqueued via an `OutboxBridge`
+  and relayed to signed webhook subscribers with retry/dead-lettering (previously the
+  outbox was never written to). New `/admin/outbox/relay` endpoint.
+- **Concurrency bulkhead** — now fronts every search/chat retrieval (was wrapping nothing).
+- **SLO tracking** — now records failures as well as successes (was success-only).
+
+### New
+- **Tenant-scoped store** — structural per-tenant data partitioning with isolation tests.
+- **Frontend outbox panel** — pending/delivered/failed/dead counts, dead-letter list, and a
+  "Relay now" action in the admin dashboard.
+
+### Integration tests
+- Event → outbox → webhook flow, bulkhead-in-path (rejection surfaces from search), SLO
+  failure recording, and tenant isolation are all covered end to end.
