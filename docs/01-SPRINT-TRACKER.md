@@ -100,6 +100,7 @@ next begins.
 | S78 | Width modules (no-infra) | Persistence/Redis/GCP settings (P4.S1); geofence point-in-polygon (P6.S7); A/B answer-quality eval framework (P6.S11/P7.S3); relevance-tuning weights + admin API (P6.S3/P7.S4) | ✅ |
 | S79 | More width modules + deploy YAML | OIDC/JWT resolver (P6.S5); partner connector framework (P6.S8); intent analytics + API (P6.S10/P7.S2); Cloud Run service.yaml + cloudbuild.yaml (P1.S4) | ✅ |
 | S80 | Alerter, CMS, accessibility | Saved-search alerter (P6.S4); multilingual CMS store + API (P6.S9/P7.S1); WCAG 2.2 AA ARIA remediation + axe spec (P6.S6) | ✅ |
+| S81 | Live integration scaffolds | Env-gated `tests/integration/` for the 12 infra-blocked steps (Elastic/Gemini/Firestore/Redis/Secret Manager); deselected from the unit gate, skip without creds, CI `integration` job wired | ✅ |
 
 ---
 
@@ -634,9 +635,20 @@ fully covered; deploy/CI/runbook are artifacts validated structurally.
 
 **Backend 641 / Frontend 174 tests, both 100%.**
 
----
+### S81 — Live integration test scaffolds (the 12 infra-blocked steps) ✅
+Added `backend/tests/integration/` — executable acceptance tests for every step that needs a
+real service, so they run the moment credentials exist and skip honestly until then:
+- `test_elastic_live.py` (P2.S2, P2.S4), `test_gemini_live.py` (P2.S4), `test_firestore_live.py`
+  (P4.S2/S3), `test_redis_live.py` (P4.S4), `test_secret_manager_live.py` (P5.S2/C2).
+- Marked `integration` and **deselected from the default run** (`-m "not integration"`), so the
+  100% unit gate is untouched (641 pass, 8 deselected) and no live path fakes coverage.
+- Each test skips with a clear message when its env vars (or not-yet-built adapter module) are
+  absent. CI gained a wired `integration` job (opt-in, gated on repository secrets).
 
-## Coverage Ledger
+These scaffolds do not *complete* the 12 infra steps — they make them runnable and verifiable
+the instant Elastic/Gemini/GCP/Redis credentials and a deploy target are provided.
+
+**Backend 641 unit (100%) + 8 integration (skipped without creds) / Frontend 174 @ 100%.**
 | Layer | Tool | Target | Latest |
 |-------|------|-------:|-------:|
 | Backend | pytest-cov | 100% | ✅ 100.00% (641 tests, 4407 stmts) |

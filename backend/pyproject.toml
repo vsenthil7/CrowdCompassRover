@@ -33,7 +33,10 @@ include = ["app*"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-addopts = "--cov=app --cov-report=term-missing --cov-report=html --cov-fail-under=100 -q"
+addopts = "--cov=app --cov-report=term-missing --cov-report=html --cov-fail-under=100 -q -m \"not integration\""
+markers = [
+    "integration: live-service tests (Elastic/Gemini/GCP/Redis); skipped unless credentials are set",
+]
 
 [tool.coverage.run]
 source = ["app"]

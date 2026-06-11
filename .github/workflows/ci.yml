@@ -139,4 +139,4 @@ jobs:
           ELASTIC_MCP_URL: ${{ secrets.ELASTIC_MCP_URL }}
           ELASTIC_MCP_API_KEY: ${{ secrets.ELASTIC_MCP_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: cd backend && pytest -m integration -v
+        run: cd backend && pytest tests/integration -o addopts="" -m integration -v
