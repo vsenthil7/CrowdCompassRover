@@ -24,6 +24,16 @@ import type {
 
 const BASE = "/api";
 
+// Optional API key for authenticated (admin/analyst) calls. Supplied at build time via
+// VITE_API_KEY. When present it is sent as X-API-Key so the backend RBAC resolver grants
+// the matching role; when absent the caller stays anonymous (visitor baseline) and the
+// public search/chat flows still work. RBAC is never disabled — this only authenticates.
+const API_KEY: string = (import.meta.env.VITE_API_KEY as string | undefined) ?? "";
+
+function authHeaders(base: Record<string, string> = {}): Record<string, string> {
+  return API_KEY ? { ...base, "X-API-Key": API_KEY } : base;
+}
+
 export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
@@ -36,7 +46,7 @@ export class ApiError extends Error {
 async function postJson<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body),
   });
   if (!res.ok) {
@@ -77,7 +87,7 @@ export async function deleteSavedSearch(owner: string, id: string): Promise<void
 }
 
 async function getJson<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`);
+  const res = await fetch(`${BASE}${path}`, { headers: authHeaders() });
   if (!res.ok) {
     throw new ApiError(res.status, `request failed: ${path}`);
   }
