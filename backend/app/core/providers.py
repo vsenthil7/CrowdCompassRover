@@ -224,7 +224,8 @@ def build_authz(settings: Settings) -> tuple[PrincipalResolver, PolicyEngine]:
     Keys configured in ``API_KEYS`` are granted the admin role by default so a single-key
     deployment is fully capable; finer-grained bindings can be registered at runtime.
     """
-    resolver = PrincipalResolver()
+    anonymous_roles = ["visitor"] if settings.rbac_public_baseline else []
+    resolver = PrincipalResolver(anonymous_role_names=anonymous_roles)
     for i, key in enumerate(sorted(settings.api_key_set)):
         resolver.register(
             KeyBinding(api_key=key, subject=f"key-{i}", tenant="default", role_names=["admin"])
@@ -279,13 +280,21 @@ def build_slo_tracker() -> SloTracker:
     return tracker
 
 
-def _build_webhook_sender():
+def _build_webhook_sender(settings: Settings):
     """Build the HTTP sender used to deliver webhook payloads.
 
-    In a real deployment this performs an httpx POST and returns the status code. Offline it
-    returns 200 so the relay path is exercised without external calls; either way the
+    In live (real/hybrid) mode this is a real httpx POST behind an SSRF guard. In mock mode
+    it returns 200 so the relay path is exercised without external calls; either way the
     signature and retry/dead-letter machinery around it is identical.
     """
+    if settings.is_live:
+        from app.webhooks.http_sender import HttpWebhookSender
+
+        return HttpWebhookSender(
+            timeout=settings.webhook_timeout,
+            allow_http=settings.webhook_allow_http,
+        )
+
     async def sender(url: str, headers: dict[str, str], body: bytes) -> int:
         return 200
 
@@ -345,7 +354,7 @@ def build_components(settings: Settings) -> Components:
 
     # Make the outbox load-bearing: published domain events are durably enqueued, then
     # relayed to webhook subscribers out-of-band (with retry + dead-lettering).
-    webhook_dispatcher = WebhookDispatcher(webhooks, _build_webhook_sender())
+    webhook_dispatcher = WebhookDispatcher(webhooks, _build_webhook_sender(settings))
     bridge = OutboxBridge(bus, outbox)
     bridge.bridge("search.performed", "route.requested", "search.zero_result")
     webhook_sink = WebhookOutboxSink(webhook_dispatcher)

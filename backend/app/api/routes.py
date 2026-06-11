@@ -31,7 +31,11 @@ from app.api.deps import (
     get_tracer,
     get_versions,
     get_webhooks,
+    get_principal,
+    get_policy,
 )
+from app.authz.policy import PolicyEngine
+from app.authz.rbac import Permission, Principal
 from app.idempotency.store import KeyState
 from app.conversation.session import SessionStore
 from app.core.config import Settings, get_settings
@@ -95,8 +99,11 @@ async def metrics() -> Response:
 @router.get("/analytics")
 async def analytics(
     recorder: AnalyticsRecorder = Depends(get_analytics),
+    principal: Principal = Depends(get_principal),
+    policy: PolicyEngine = Depends(get_policy),
 ) -> dict:
     """Aggregated query analytics snapshot."""
+    policy.require(principal, Permission.VIEW_ANALYTICS)
     snap = recorder.snapshot()
     return {
         "total": snap.total,
@@ -117,9 +124,13 @@ async def indices(agent: RoverAgent = Depends(get_agent)) -> dict:
 
 @router.post("/search", response_model=SearchResponse)
 async def search(
-    req: SearchRequest, agent: RoverAgent = Depends(get_agent)
+    req: SearchRequest,
+    agent: RoverAgent = Depends(get_agent),
+    principal: Principal = Depends(get_principal),
+    policy: PolicyEngine = Depends(get_policy),
 ) -> SearchResponse:
     """Run a hybrid multilingual search with optional cursor pagination."""
+    policy.require(principal, Permission.SEARCH)
     return await agent.search(
         req.query, req.user_location, req.top_k, req.session_id, req.cursor
     )
@@ -127,17 +138,25 @@ async def search(
 
 @router.post("/chat", response_model=ChatAnswer)
 async def chat(
-    req: ChatRequest, agent: RoverAgent = Depends(get_agent)
+    req: ChatRequest,
+    agent: RoverAgent = Depends(get_agent),
+    principal: Principal = Depends(get_principal),
+    policy: PolicyEngine = Depends(get_policy),
 ) -> ChatAnswer:
     """Return a grounded, cited answer (non-streaming)."""
+    policy.require(principal, Permission.CHAT)
     return await agent.chat(req.query, req.user_location, session_id=req.session_id)
 
 
 @router.post("/routes")
 async def routes(
-    req: RouteRequest, agent: RoverAgent = Depends(get_agent)
+    req: RouteRequest,
+    agent: RoverAgent = Depends(get_agent),
+    principal: Principal = Depends(get_principal),
+    policy: PolicyEngine = Depends(get_policy),
 ) -> dict:
     """Compute route options to a destination ('cheapest route to the stadium')."""
+    policy.require(principal, Permission.ROUTE)
     modes = None
     if req.modes is not None:
         modes = [TravelMode(m) for m in req.modes]
@@ -151,18 +170,26 @@ async def routes(
 
 @router.post("/search/batch")
 async def search_batch(
-    req: BatchSearchRequest, agent: RoverAgent = Depends(get_agent)
+    req: BatchSearchRequest,
+    agent: RoverAgent = Depends(get_agent),
+    principal: Principal = Depends(get_principal),
+    policy: PolicyEngine = Depends(get_policy),
 ) -> dict:
     """Run several queries in one call."""
+    policy.require(principal, Permission.SEARCH)
     responses = await agent.batch_search(req.queries, req.user_location, req.top_k)
     return {"responses": [r.model_dump() for r in responses]}
 
 
 @router.post("/saved-searches")
 async def create_saved_search(
-    req: SavedSearchRequest, service=Depends(get_saved_searches)
+    req: SavedSearchRequest,
+    service=Depends(get_saved_searches),
+    principal: Principal = Depends(get_principal),
+    policy: PolicyEngine = Depends(get_policy),
 ) -> dict:
     """Persist a saved search for an owner."""
+    policy.require(principal, Permission.SAVE_SEARCH)
     saved = await service.save(req.owner, req.query, req.label, req.tags)
     return {
         "id": saved.id,
@@ -198,8 +225,13 @@ async def flags(registry=Depends(get_flags)) -> dict:
 
 
 @router.get("/traces")
-async def traces(tracer=Depends(get_tracer)) -> dict:
+async def traces(
+    tracer=Depends(get_tracer),
+    principal: Principal = Depends(get_principal),
+    policy: PolicyEngine = Depends(get_policy),
+) -> dict:
     """Return recently recorded spans (most recent first)."""
+    policy.require(principal, Permission.VIEW_TRACES)
     spans = tracer.exporter.finished()[-50:]
     return {
         "spans": [
@@ -218,14 +250,24 @@ async def traces(tracer=Depends(get_tracer)) -> dict:
 
 
 @router.get("/admin/status")
-async def admin_status(admin=Depends(get_admin)) -> dict:
+async def admin_status(
+    admin=Depends(get_admin),
+    principal: Principal = Depends(get_principal),
+    policy: PolicyEngine = Depends(get_policy),
+) -> dict:
     """Operational status summary."""
+    policy.require(principal, Permission.ADMIN_CACHE)
     return await admin.status()
 
 
 @router.post("/admin/cache/flush")
-async def admin_flush_cache(admin=Depends(get_admin)) -> dict:
+async def admin_flush_cache(
+    admin=Depends(get_admin),
+    principal: Principal = Depends(get_principal),
+    policy: PolicyEngine = Depends(get_policy),
+) -> dict:
     """Flush the search cache."""
+    policy.require(principal, Permission.ADMIN_CACHE)
     return await admin.flush_cache()
 
 
@@ -234,12 +276,15 @@ async def admin_reindex(
     request: Request,
     admin=Depends(get_admin),
     idempotency=Depends(get_idempotency),
+    principal: Principal = Depends(get_principal),
+    policy: PolicyEngine = Depends(get_policy),
 ) -> dict:
     """Trigger a reindex from ingestion sources.
 
     Honours an optional ``Idempotency-Key`` header so a retried reindex returns the prior
     result instead of running twice.
     """
+    policy.require(principal, Permission.ADMIN_REINDEX)
     key = request.headers.get("Idempotency-Key")
     if key:
         state, cached = await idempotency.begin(key)
@@ -276,9 +321,14 @@ async def audit_log(audit=Depends(get_audit)) -> dict:
 
 @router.post("/webhooks")
 async def create_webhook(
-    req: WebhookRequest, registry=Depends(get_webhooks), audit=Depends(get_audit)
+    req: WebhookRequest,
+    registry=Depends(get_webhooks),
+    audit=Depends(get_audit),
+    principal: Principal = Depends(get_principal),
+    policy: PolicyEngine = Depends(get_policy),
 ) -> dict:
     """Register a webhook subscription."""
+    policy.require(principal, Permission.MANAGE_WEBHOOKS)
     import uuid
 
     from app.webhooks.dispatcher import WebhookSubscription
@@ -296,8 +346,14 @@ async def create_webhook(
 
 
 @router.delete("/webhooks/{sub_id}")
-async def delete_webhook(sub_id: str, registry=Depends(get_webhooks)) -> dict:
+async def delete_webhook(
+    sub_id: str,
+    registry=Depends(get_webhooks),
+    principal: Principal = Depends(get_principal),
+    policy: PolicyEngine = Depends(get_policy),
+) -> dict:
     """Remove a webhook subscription."""
+    policy.require(principal, Permission.MANAGE_WEBHOOKS)
     if not registry.remove(sub_id):
         raise NotFoundError("webhook not found")
     return {"deleted": True}
@@ -320,15 +376,28 @@ async def usage(tenant: str, meter=Depends(get_meter), tenants=Depends(get_tenan
 
 
 @router.get("/gdpr/export/{subject}")
-async def gdpr_export(subject: str, service=Depends(get_data_rights)) -> dict:
+async def gdpr_export(
+    subject: str,
+    service=Depends(get_data_rights),
+    principal: Principal = Depends(get_principal),
+    policy: PolicyEngine = Depends(get_policy),
+) -> dict:
     """Export all data held about a subject."""
+    policy.require(principal, Permission.EXPORT_DATA)
     doc = await service.export(subject)
     return doc.to_dict()
 
 
 @router.delete("/gdpr/{subject}")
-async def gdpr_purge(subject: str, service=Depends(get_data_rights), audit=Depends(get_audit)) -> dict:
+async def gdpr_purge(
+    subject: str,
+    service=Depends(get_data_rights),
+    audit=Depends(get_audit),
+    principal: Principal = Depends(get_principal),
+    policy: PolicyEngine = Depends(get_policy),
+) -> dict:
     """Purge a subject's data."""
+    policy.require(principal, Permission.PURGE_DATA)
     result = await service.purge(subject)
     audit.record(subject, "default", "gdpr.purge", subject, "success")
     return {
@@ -364,8 +433,14 @@ async def version_info(registry=Depends(get_versions)) -> dict:
 
 
 @router.post("/admin/outbox/relay")
-async def outbox_relay(outbox=Depends(get_outbox), sink=Depends(get_outbox_sink)) -> dict:
+async def outbox_relay(
+    outbox=Depends(get_outbox),
+    sink=Depends(get_outbox_sink),
+    principal: Principal = Depends(get_principal),
+    policy: PolicyEngine = Depends(get_policy),
+) -> dict:
     """Drain pending outbox messages to webhook subscribers (relay step)."""
+    policy.require(principal, Permission.ADMIN_CACHE)
     return await outbox.relay(sink)
 
 
@@ -395,8 +470,14 @@ async def bulkhead_stats(bulkhead=Depends(get_bulkhead)) -> dict:
 
 
 @router.post("/admin/retention/sweep")
-async def retention_sweep(sweeper=Depends(get_retention), audit=Depends(get_audit)) -> dict:
+async def retention_sweep(
+    sweeper=Depends(get_retention),
+    audit=Depends(get_audit),
+    principal: Principal = Depends(get_principal),
+    policy: PolicyEngine = Depends(get_policy),
+) -> dict:
     """Apply retention policies, returning per-source removal counts."""
+    policy.require(principal, Permission.ADMIN_REINDEX)
     results = sweeper.sweep()
     audit.record("system", "default", "retention.sweep", "all", "success")
     return {"swept": [{"name": r.name, "removed": r.removed} for r in results]}
@@ -451,9 +532,13 @@ async def report_live_signal(
 
 @router.post("/chat/stream")
 async def chat_stream(
-    req: ChatRequest, agent: RoverAgent = Depends(get_agent)
+    req: ChatRequest,
+    agent: RoverAgent = Depends(get_agent),
+    principal: Principal = Depends(get_principal),
+    policy: PolicyEngine = Depends(get_policy),
 ) -> EventSourceResponse:
     """Stream a grounded answer as Server-Sent Events."""
+    policy.require(principal, Permission.CHAT)
     answer = await agent.chat(req.query, req.user_location, session_id=req.session_id)
 
     async def event_gen():

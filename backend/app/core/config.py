@@ -50,6 +50,13 @@ class Settings(BaseSettings):
 
     # Security
     api_keys: str = ""  # comma-separated; empty disables auth
+    # When true, callers with no/unknown API key get the baseline "visitor" role
+    # (search/chat/route/save_search) so public endpoints work zero-config. Elevated
+    # routes (analytics, traces, admin, webhooks, gdpr) are always permission-gated.
+    rbac_public_baseline: bool = True
+    # Live webhook delivery (real/hybrid mode)
+    webhook_timeout: float = 5.0
+    webhook_allow_http: bool = False
     rate_limit_rate: float = 10.0  # tokens/sec per client
     rate_limit_capacity: float = 20.0
 
@@ -95,6 +102,11 @@ class Settings(BaseSettings):
     @property
     def elastic_is_real(self) -> bool:
         """Whether the Elastic layer should use the live service."""
+        return self.app_mode in (AppMode.REAL, AppMode.HYBRID)
+
+    @property
+    def is_live(self) -> bool:
+        """Whether the app runs against any live integration (real or hybrid)."""
         return self.app_mode in (AppMode.REAL, AppMode.HYBRID)
 
     @property

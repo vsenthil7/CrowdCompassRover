@@ -93,6 +93,9 @@ next begins.
 | S71 | Frontend outbox panel | OutboxPanel + relay action; integration tests; 100% | ✅ |
 | S72 | Operator observability UI | Surface analytics/traces/flags/readiness/bulkhead/retention into the ops dashboard | ✅ |
 | S73 | Temporal availability + live signals | Opening-hours model, evaluator, live crowd/closure signals, availability service; reranker + API + frontend wiring | ✅ |
+| S74 | RBAC enforcement at route layer | get_principal/get_policy deps + policy.require() on every elevated route; configurable public baseline; negative 403 tests | ✅ |
+| S75 | Real HTTP webhook sender + SSRF guard | httpx sender behind SSRF guard (loopback/private/link-local/metadata reject), live-mode wiring, injectable transport | ✅ |
+| S76 | Tenant key-scoping across stores | InMemoryEventRepository keys scoped by active tenant; structural cross-tenant isolation; isolation tests | ✅ |
 
 ---
 
@@ -515,12 +518,49 @@ new capability, not UI plumbing.
 
 **Backend 499 / Frontend 174 tests, both 100%.** Production build clean.
 
+### S74 — RBAC enforcement at the route layer (Perplexity review P3) ✅
+**Gap found:** the reviewer's repo map flagged that `authz/rbac.py` + `authz/policy.py` were
+built but **no route enforced them** ("no RBAC calls anywhere"). Real production hole.
+- Added `get_principal` (resolves `X-API-Key` -> Principal) and `get_policy` FastAPI deps.
+- Wired `policy.require(principal, Permission.X)` into every elevated route: analytics,
+  traces, all `/admin/*`, webhooks create/delete, GDPR export/purge, outbox relay,
+  retention sweep.
+- Configurable `rbac_public_baseline` (default on): callers with no/unknown key get the
+  baseline `visitor` role so public search/chat/route stay zero-config in mock mode, while
+  privileged routes are genuinely gated. Turning it off locks down everything.
+- Negative tests: every elevated route returns `403 forbidden` to a permissionless caller,
+  `200` with an admin key; bogus key -> anonymous; baseline-off -> search itself 403s.
+
+### S75 — Real HTTP webhook sender + SSRF guard (Perplexity review P5.S1) ✅
+**Gap found:** the webhook "sender" was a no-op lambda returning 200.
+- New `app/webhooks/http_sender.py`: `HttpWebhookSender` (httpx POST, bounded timeout,
+  injectable transport for tests) behind `assert_safe_url()` — rejects non-https (unless
+  explicitly allowed), missing host, the cloud metadata address, and any host resolving to
+  loopback/private/link-local/multicast/reserved IPs.
+- Wired into the composition root: live (real/hybrid) mode uses the real sender; mock keeps
+  the offline 200 sender. Dispatcher contract unchanged, so retry/dead-letter/outbox stays.
+- Tests cover every SSRF rejection branch, successful delivery via MockTransport, and the
+  mode-based wiring.
+
+### S76 — Tenant key-scoping across stores (Perplexity review P4.S5) ✅
+**Gap found:** `TenantContext.scoped_key()` and `TenantScopedStore` existed but weren't
+wired to the repositories — cross-tenant isolation was not actually enforced.
+- `InMemoryEventRepository` now scopes every key by the active tenant
+  (`"{tenant_id}::{key}"`); get/put/bulk_put/list_all/by_city/count/delete all filter by the
+  current tenant prefix. No active context defaults to `default`; fixtures seed under
+  `default`.
+- Isolation tests prove a tenant cannot read, list, count, or delete another tenant's data,
+  and that seed data is visible only under `default`.
+
+**Backend 552 / Frontend 174 tests, both 100%.** Production build clean. Backend-only pass;
+frontend unchanged.
+
 ---
 
 ## Coverage Ledger
 | Layer | Tool | Target | Latest |
 |-------|------|-------:|-------:|
-| Backend | pytest-cov | 100% | ✅ 100.00% (499 tests, 3774 stmts) |
+| Backend | pytest-cov | 100% | ✅ 100.00% (552 tests, 3885 stmts) |
 | Frontend | vitest --coverage | 100% | ✅ 100.00% (174 tests) |
 | E2E flows | Playwright | 100% of journeys | ✅ 8 journeys (browser run pending CDN access; flows validated via live API) |
 

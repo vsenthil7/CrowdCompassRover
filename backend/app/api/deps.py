@@ -1,8 +1,12 @@
 """FastAPI dependency wiring."""
 from __future__ import annotations
 
+from fastapi import Request
+
 from app.agent.orchestrator import RoverAgent
 from app.analytics.recorder import AnalyticsRecorder
+from app.authz.policy import PolicyEngine
+from app.authz.rbac import Principal
 from app.conversation.session import SessionStore
 from app.core.config import get_settings
 from app.core.providers import Components, build_components
@@ -140,3 +144,19 @@ def get_availability():
 def get_tenants():
     """Return the tenant resolver (FastAPI dependency)."""
     return _get_components().tenants
+
+
+def get_principal(request: Request) -> Principal:
+    """Resolve the calling principal from the X-API-Key header (FastAPI dependency).
+
+    Unknown / missing keys resolve to the ANONYMOUS principal (no permissions).
+    Protected routes then call ``policy.require()`` to enforce their permission.
+    """
+    components = _get_components()
+    api_key = request.headers.get("X-API-Key", "")
+    return components.resolver.resolve(api_key)
+
+
+def get_policy() -> PolicyEngine:
+    """Return the policy engine (FastAPI dependency)."""
+    return _get_components().policy

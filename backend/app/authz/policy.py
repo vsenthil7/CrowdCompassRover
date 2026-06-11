@@ -34,19 +34,37 @@ class KeyBinding:
 class PrincipalResolver:
     """Resolves API keys to principals."""
 
-    def __init__(self, bindings: list[KeyBinding] | None = None) -> None:
+    def __init__(
+        self,
+        bindings: list[KeyBinding] | None = None,
+        anonymous_role_names: list[str] | None = None,
+    ) -> None:
         self._by_key: dict[str, KeyBinding] = {b.api_key: b for b in (bindings or [])}
+        # Roles granted to callers with no/unknown key. Empty => the no-permission
+        # ANONYMOUS principal (fully locked down). Used to keep public endpoints
+        # zero-config while still permission-gating elevated routes.
+        self._anonymous_role_names = anonymous_role_names or []
 
     def register(self, binding: KeyBinding) -> None:
         self._by_key[binding.api_key] = binding
 
-    def resolve(self, api_key: str | None) -> Principal:
-        """Return the principal for an API key, or anonymous."""
-        if not api_key:
+    def _anonymous(self) -> Principal:
+        if not self._anonymous_role_names:
             return ANONYMOUS
+        roles: list[Role] = [
+            BUILTIN_ROLES[name]
+            for name in self._anonymous_role_names
+            if name in BUILTIN_ROLES
+        ]
+        return Principal(subject="anonymous", tenant="public", roles=roles)
+
+    def resolve(self, api_key: str | None) -> Principal:
+        """Return the principal for an API key, or the anonymous principal."""
+        if not api_key:
+            return self._anonymous()
         binding = self._by_key.get(api_key)
         if binding is None:
-            return ANONYMOUS
+            return self._anonymous()
         roles: list[Role] = [
             BUILTIN_ROLES[name] for name in binding.role_names if name in BUILTIN_ROLES
         ]

@@ -21,6 +21,31 @@ async def client():
     deps._components = None
 
 
+# An admin API key for exercising permission-gated routes. Any key in API_KEYS is
+# granted the admin role by build_authz(), so this header satisfies every
+# policy.require() check on elevated routes.
+ADMIN_KEY = "test-admin-key"
+
+
+@pytest.fixture
+async def admin_client(monkeypatch):
+    """A client whose requests carry an admin API key (X-API-Key header)."""
+    from app.core import config as config_module
+
+    monkeypatch.setenv("API_KEYS", ADMIN_KEY)
+    config_module.get_settings.cache_clear()
+    deps._components = None
+    app = create_app()
+    async with LifespanManager(app):
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://test", headers={"X-API-Key": ADMIN_KEY}
+        ) as c:
+            yield c
+    deps._components = None
+    config_module.get_settings.cache_clear()
+
+
 async def test_health(client):
     r = await client.get("/api/health")
     assert r.status_code == 200
@@ -76,9 +101,9 @@ async def test_ready_endpoint(client):
     assert body["state"] == "healthy"
 
 
-async def test_analytics_endpoint(client):
-    await client.post("/api/search", json={"query": "halal food open now"})
-    r = await client.get("/api/analytics")
+async def test_analytics_endpoint(admin_client):
+    await admin_client.post("/api/search", json={"query": "halal food open now"})
+    r = await admin_client.get("/api/analytics")
     assert r.status_code == 200
     body = r.json()
     assert body["total"] >= 1
@@ -174,37 +199,37 @@ async def test_flags_endpoint(client):
     assert "route_enrichment" in r.json()["flags"]
 
 
-async def test_traces_endpoint(client):
-    await client.post("/api/search", json={"query": "halal food"})
-    r = await client.get("/api/traces")
+async def test_traces_endpoint(admin_client):
+    await admin_client.post("/api/search", json={"query": "halal food"})
+    r = await admin_client.get("/api/traces")
     assert r.status_code == 200
     spans = r.json()["spans"]
     assert any(s["name"] == "search" for s in spans)
 
 
-async def test_admin_status_endpoint(client):
-    r = await client.get("/api/admin/status")
+async def test_admin_status_endpoint(admin_client):
+    r = await admin_client.get("/api/admin/status")
     assert r.status_code == 200
     assert "events" in r.json()
 
 
-async def test_admin_flush_cache_endpoint(client):
-    r = await client.post("/api/admin/cache/flush")
+async def test_admin_flush_cache_endpoint(admin_client):
+    r = await admin_client.post("/api/admin/cache/flush")
     assert r.status_code == 200
     assert r.json()["flushed"] is True
 
 
-async def test_admin_reindex_endpoint(client):
-    r = await client.post("/api/admin/reindex")
+async def test_admin_reindex_endpoint(admin_client):
+    r = await admin_client.post("/api/admin/reindex")
     assert r.status_code == 200
     assert r.json()["indexed"] >= 1
 
 
-async def test_admin_reindex_idempotent_replay(client):
-    first = await client.post("/api/admin/reindex", headers={"Idempotency-Key": "abc123"})
+async def test_admin_reindex_idempotent_replay(admin_client):
+    first = await admin_client.post("/api/admin/reindex", headers={"Idempotency-Key": "abc123"})
     assert first.status_code == 200
     assert "idempotent_replay" not in first.json()
-    second = await client.post("/api/admin/reindex", headers={"Idempotency-Key": "abc123"})
+    second = await admin_client.post("/api/admin/reindex", headers={"Idempotency-Key": "abc123"})
     assert second.status_code == 200
     assert second.json()["idempotent_replay"] is True
     assert second.json()["indexed"] == first.json()["indexed"]
@@ -218,8 +243,8 @@ async def test_audit_endpoint(client):
     assert "entries" in body
 
 
-async def test_webhook_create_and_delete(client):
-    create = await client.post(
+async def test_webhook_create_and_delete(admin_client):
+    create = await admin_client.post(
         "/api/webhooks",
         json={
             "tenant": "acme",
@@ -230,12 +255,12 @@ async def test_webhook_create_and_delete(client):
     )
     assert create.status_code == 200
     wid = create.json()["id"]
-    deleted = await client.delete(f"/api/webhooks/{wid}")
+    deleted = await admin_client.delete(f"/api/webhooks/{wid}")
     assert deleted.status_code == 200
 
 
-async def test_webhook_delete_missing(client):
-    r = await client.delete("/api/webhooks/missing")
+async def test_webhook_delete_missing(admin_client):
+    r = await admin_client.delete("/api/webhooks/missing")
     assert r.status_code == 404
 
 
@@ -248,25 +273,25 @@ async def test_usage_endpoint(client):
     assert "quota" in body
 
 
-async def test_gdpr_export_endpoint(client):
+async def test_gdpr_export_endpoint(admin_client):
     # Create some data first.
-    await client.post(
+    await admin_client.post(
         "/api/saved-searches",
         json={"owner": "alice", "query": "halal", "label": "h"},
     )
-    r = await client.get("/api/gdpr/export/alice")
+    r = await admin_client.get("/api/gdpr/export/alice")
     assert r.status_code == 200
     body = r.json()
     assert body["subject"] == "alice"
     assert len(body["saved_searches"]) >= 1
 
 
-async def test_gdpr_purge_endpoint(client):
-    await client.post(
+async def test_gdpr_purge_endpoint(admin_client):
+    await admin_client.post(
         "/api/saved-searches",
         json={"owner": "bob", "query": "halal", "label": "h"},
     )
-    r = await client.request("DELETE", "/api/gdpr/bob")
+    r = await admin_client.request("DELETE", "/api/gdpr/bob")
     assert r.status_code == 200
     assert r.json()["saved_searches_removed"] >= 1
 
@@ -294,10 +319,10 @@ async def test_outbox_stats_endpoint(client):
     assert "dead_letters" in r.json()
 
 
-async def test_outbox_relay_delivers_to_subscriber(client):
+async def test_outbox_relay_delivers_to_subscriber(admin_client):
     # Register a subscriber for search.performed, run a search (enqueues via bridge),
     # then relay — exercises the factory-built webhook sender end to end.
-    create = await client.post(
+    create = await admin_client.post(
         "/api/webhooks",
         json={
             "tenant": "default",
@@ -307,8 +332,8 @@ async def test_outbox_relay_delivers_to_subscriber(client):
         },
     )
     assert create.status_code == 200
-    await client.post("/api/search", json={"query": "halal food open now"})
-    r = await client.post("/api/admin/outbox/relay")
+    await admin_client.post("/api/search", json={"query": "halal food open now"})
+    r = await admin_client.post("/api/admin/outbox/relay")
     assert r.status_code == 200
     assert r.json()["delivered"] >= 1
 
@@ -321,8 +346,8 @@ async def test_bulkhead_stats_endpoint(client):
     assert body["max_concurrent"] >= 1
 
 
-async def test_retention_sweep_endpoint(client):
-    r = await client.post("/api/admin/retention/sweep")
+async def test_retention_sweep_endpoint(admin_client):
+    r = await admin_client.post("/api/admin/retention/sweep")
     assert r.status_code == 200
     swept = r.json()["swept"]
     names = {s["name"] for s in swept}
