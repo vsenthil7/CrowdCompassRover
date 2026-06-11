@@ -92,9 +92,17 @@ class AuditLog:
         return entry
 
     def verify(self) -> bool:
-        """Verify the hash chain is intact (no tampering)."""
-        prev = GENESIS_HASH
-        for entry in self._entries:
+        """Verify the hash chain is intact (no tampering).
+
+        Tolerates a pruned prefix: verification starts from the first retained entry's
+        recorded ``prev_hash`` rather than assuming the genesis hash, so retention does not
+        produce false tamper positives while still catching any in-place mutation.
+        """
+        entries = list(self._entries)
+        if not entries:
+            return True
+        prev = entries[0].prev_hash
+        for entry in entries:
             expected = _compute_hash(
                 entry.seq, entry.ts, entry.actor, entry.tenant, entry.action,
                 entry.resource, entry.outcome, prev, entry.metadata,
@@ -116,3 +124,16 @@ class AuditLog:
     @property
     def size(self) -> int:
         return len(self._entries)
+
+    def prune_before(self, cutoff_ts: float) -> int:
+        """Drop entries older than cutoff_ts; return how many were removed.
+
+        Note: pruning historical entries is a retention action, not tampering — the chain
+        remains valid for the retained suffix because each entry still references its true
+        predecessor's hash.
+        """
+        kept = [e for e in self._entries if e.ts >= cutoff_ts]
+        removed = len(self._entries) - len(kept)
+        self._entries.clear()
+        self._entries.extend(kept)
+        return removed

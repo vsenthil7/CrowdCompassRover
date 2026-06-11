@@ -1,5 +1,7 @@
-import type { AdminStatus, AuditReport } from "../lib/types";
+import type { AdminStatus, AuditReport, SloReport, VersionInfo } from "../lib/types";
 import { UsageView } from "./UsageView";
+import { SloPanel } from "./SloPanel";
+import { VersionBadge } from "./VersionBadge";
 import { formatAge, formatPercent, onActivate } from "../lib/a11y";
 import type { UsageInfo } from "../lib/types";
 
@@ -7,6 +9,8 @@ interface Props {
   status: AdminStatus | null;
   usage: UsageInfo | null;
   audit: AuditReport | null;
+  slo: SloReport | null;
+  version: VersionInfo | null;
   loading: boolean;
   busy: boolean;
   error: string | null;
@@ -19,6 +23,8 @@ export function AdminDashboard({
   status,
   usage,
   audit,
+  slo,
+  version,
   loading,
   busy,
   error,
@@ -30,6 +36,7 @@ export function AdminDashboard({
     <section className="admin" data-testid="admin-dashboard" aria-label="Admin dashboard">
       <div className="admin__head">
         <h2 className="admin__title">Operations</h2>
+        {version ? <VersionBadge version={version} /> : null}
         <span
           className="admin__refresh"
           role="button"
@@ -73,6 +80,13 @@ export function AdminDashboard({
       ) : null}
 
       {usage ? <UsageView usage={usage} /> : null}
+
+      {slo ? (
+        <div className="admin__slo" data-testid="admin-slo">
+          <h3 className="admin__subtitle">Service objectives</h3>
+          <SloPanel slo={slo} />
+        </div>
+      ) : null}
 
       <div className="admin__actions">
         <button className="btn" onClick={onReindex} disabled={busy} data-testid="admin-reindex">

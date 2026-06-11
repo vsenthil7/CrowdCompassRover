@@ -276,3 +276,30 @@ Requests resolve to a principal (anonymous unless an API key maps to one). Built
 **visitor** (search/chat/route/save), **analyst** (+analytics/traces), **admin** (+cache,
 reindex, webhooks, export, purge). The policy engine raises 403 `forbidden` when a
 principal lacks a required permission.
+
+---
+
+## Scale & reliability endpoints (v1.5.0)
+
+### GET `/api/version` (public)
+Supported API versions: `{ "current": "v1", "supported": ["v1"] }`. Deprecated versions
+return advisory `Deprecation` / `Sunset` headers.
+
+### GET `/api/slo`
+Per-service SLO status: `{ "services": [ { service, target, total, success_ratio,
+meeting_slo, budget_remaining } ] }`.
+
+### GET `/api/admin/outbox`
+Outbox counts by state plus any dead letters: `{ "stats": { pending, delivered, failed,
+dead }, "dead_letters": [ { id, topic, attempts, error } ] }`.
+
+### GET `/api/admin/bulkhead`
+Concurrency-limiter utilisation: `{ name, max_concurrent, active, queued, rejected }`.
+
+### POST `/api/admin/retention/sweep`
+Apply retention policies: `{ "swept": [ { name, removed } ] }`.
+
+### Tenancy
+`/api/usage/{tenant}` validates and normalises the tenant id (lower-cased; rejected with
+400 `invalid_tenant` / `unknown_tenant` when malformed or outside the allow-list). A
+`TenantContext` is propagated per request and namespaces scoped storage keys.

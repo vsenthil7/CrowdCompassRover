@@ -71,6 +71,14 @@ class Settings(BaseSettings):
     # Conversation
     session_ttl: float = 1800.0
 
+    # Concurrency (bulkhead)
+    bulkhead_max_concurrent: int = 16
+    bulkhead_max_queue: int = 64
+
+    # Retention (seconds): analytics 90d, audit 365d by default
+    retention_analytics_seconds: float = 7776000.0
+    retention_audit_seconds: float = 31536000.0
+
     # Observability
     log_level: str = "INFO"
 

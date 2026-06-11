@@ -1,12 +1,14 @@
 import { useCallback, useState } from "react";
 import * as api from "../lib/api";
 import { getSessionId } from "../lib/session";
-import type { AdminStatus, AuditReport, UsageInfo } from "../lib/types";
+import type { AdminStatus, AuditReport, SloReport, UsageInfo, VersionInfo } from "../lib/types";
 
 export interface AdminState {
   status: AdminStatus | null;
   usage: UsageInfo | null;
   audit: AuditReport | null;
+  slo: SloReport | null;
+  version: VersionInfo | null;
   loading: boolean;
   error: string | null;
   busy: boolean;
@@ -20,6 +22,8 @@ export function useAdmin() {
   const [status, setStatus] = useState<AdminStatus | null>(null);
   const [usage, setUsage] = useState<UsageInfo | null>(null);
   const [audit, setAudit] = useState<AuditReport | null>(null);
+  const [slo, setSlo] = useState<SloReport | null>(null);
+  const [version, setVersion] = useState<VersionInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -28,14 +32,18 @@ export function useAdmin() {
     setLoading(true);
     setError(null);
     try {
-      const [s, u, a] = await Promise.all([
+      const [s, u, a, sl, v] = await Promise.all([
         api.adminStatus(),
         api.usage(getSessionId()),
         api.auditLog(),
+        api.sloReport(),
+        api.versionInfo(),
       ]);
       setStatus(s);
       setUsage(u);
       setAudit(a);
+      setSlo(sl);
+      setVersion(v);
     } catch (e) {
       setError(message(e));
     } finally {
@@ -70,7 +78,7 @@ export function useAdmin() {
   }, [refresh]);
 
   return {
-    state: { status, usage, audit, loading, error, busy },
+    state: { status, usage, audit, slo, version, loading, error, busy },
     refresh,
     reindex,
     flushCache,

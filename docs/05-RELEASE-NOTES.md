@@ -192,3 +192,29 @@ tests**; frontend to **115 tests**. Both at 100% coverage.
   (`SavedSearchService.list_by_owner`, `VersionedRepository.list_values`,
   `SessionStore.drop`).
 - Fixed a logging-capture test flake (now uses caplog deterministically).
+
+---
+
+## v1.5.0 — 2026-06-01
+
+Scale & reliability expansion. Backend grew to **117 modules / ~7,230 lines / 422 tests**;
+frontend to **124 tests**. Both at 100% coverage.
+
+### New backend capabilities
+- **Multi-tenancy** — tenant context propagation, validation, and allow-list resolution.
+- **API versioning** — version registry with deprecation/sunset headers.
+- **Transactional outbox** — reliable event/webhook delivery with retry and dead-letter,
+  closing the "lost after commit" gap.
+- **Secrets abstraction** — provider indirection with rotation overlap windows.
+- **Concurrency bulkhead** — caps in-flight work with a bounded queue and fast 503.
+- **Data retention** — policy-driven TTL sweeping of analytics and audit data (audit
+  integrity verification made robust to pruning).
+- **SLO / error budgets** — per-service objective tracking computed from recorded outcomes.
+
+### New frontend capabilities
+- **SLO panel** — per-service error-budget bars (ok/warning/critical) in the ops dashboard.
+- **Version badge** — current API version with supported-versions tooltip.
+
+### API additions
+- `/version` (public), `/slo`, `/admin/outbox`, `/admin/bulkhead`,
+  `/admin/retention/sweep`; `/usage/{tenant}` now validates the tenant.

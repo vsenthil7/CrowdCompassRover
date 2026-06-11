@@ -7,7 +7,9 @@ import type {
   RouteResponse,
   SavedSearch,
   SearchResponse,
+  SloReport,
   UsageInfo,
+  VersionInfo,
 } from "./types";
 
 const BASE = "/api";
@@ -90,6 +92,14 @@ export async function reindex(): Promise<{ indexed: number; healthy: boolean }> 
 
 export async function flushCache(): Promise<{ flushed: boolean }> {
   return postJson("/admin/cache/flush", {});
+}
+
+export async function sloReport(): Promise<SloReport> {
+  return getJson<SloReport>("/slo");
+}
+
+export async function versionInfo(): Promise<VersionInfo> {
+  return getJson<VersionInfo>("/version");
 }
 
 export async function chat(

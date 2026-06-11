@@ -271,6 +271,45 @@ async def test_gdpr_purge_endpoint(client):
     assert r.json()["saved_searches_removed"] >= 1
 
 
+async def test_slo_endpoint(client):
+    await client.post("/api/search", json={"query": "halal food"})
+    r = await client.get("/api/slo")
+    assert r.status_code == 200
+    services = r.json()["services"]
+    assert any(s["service"] == "search" for s in services)
+
+
+async def test_version_endpoint(client):
+    r = await client.get("/api/version")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["current"] == "v1"
+    assert "v1" in body["supported"]
+
+
+async def test_outbox_stats_endpoint(client):
+    r = await client.get("/api/admin/outbox")
+    assert r.status_code == 200
+    assert "stats" in r.json()
+    assert "dead_letters" in r.json()
+
+
+async def test_bulkhead_stats_endpoint(client):
+    r = await client.get("/api/admin/bulkhead")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["name"] == "search"
+    assert body["max_concurrent"] >= 1
+
+
+async def test_retention_sweep_endpoint(client):
+    r = await client.post("/api/admin/retention/sweep")
+    assert r.status_code == 200
+    swept = r.json()["swept"]
+    names = {s["name"] for s in swept}
+    assert {"analytics", "audit"} <= names
+
+
 async def test_get_agent_lazy_init():
     # When components not initialized, get_agent should build them on demand.
     deps._components = None
@@ -311,6 +350,15 @@ async def test_shutdown_closes_closables():
     from app.gdpr.data_rights import DataRightsService
     from app.notifications.alerts import AlertManager
 
+    from app.notifications.alerts import AlertManager
+    from app.tenancy.context import TenantResolver
+    from app.versioning.registry import default_registry
+    from app.outbox.store import Outbox
+    from app.secrets.provider import EnvSecretProvider
+    from app.concurrency.bulkhead import Bulkhead
+    from app.retention.sweeper import RetentionSweeper
+    from app.slo.tracker import SloTracker
+
     repo = InMemoryEventRepository()
     flags = FeatureFlags()
     sessions = SessionStore()
@@ -342,6 +390,13 @@ async def test_shutdown_closes_closables():
         meter=UsageMeter(),
         data_rights=DataRightsService(sessions=sessions, saved_searches=saved, audit=audit),
         alerts=AlertManager(),
+        tenants=TenantResolver(),
+        versions=default_registry(),
+        outbox=Outbox(),
+        secrets=EnvSecretProvider(),
+        bulkhead=Bulkhead("test"),
+        retention=RetentionSweeper(),
+        slo=SloTracker(),
         closables=[_C(), object()],
     )
     await deps.shutdown_components()

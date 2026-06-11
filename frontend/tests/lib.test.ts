@@ -176,4 +176,16 @@ describe("api client", () => {
     const f = await api.flushCache();
     expect(f.flushed).toBe(true);
   });
+
+  it("sloReport fetches services", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ services: [] }) });
+    const s = await api.sloReport();
+    expect(s.services).toEqual([]);
+  });
+
+  it("versionInfo fetches version", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ current: "v1", supported: ["v1"] }) });
+    const v = await api.versionInfo();
+    expect(v.current).toBe("v1");
+  });
 });

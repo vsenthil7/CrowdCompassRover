@@ -767,3 +767,90 @@ body {
   font-size: 11px;
   color: var(--ink-dim);
 }
+
+/* Version badge */
+.version-badge {
+  margin-left: 10px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--ink-dim);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+
+/* SLO panel */
+.admin__slo {
+  margin: 14px 0;
+}
+
+.slo {
+  display: grid;
+  gap: 12px;
+}
+
+.slo-empty {
+  font-size: 13px;
+  color: var(--ink-dim);
+  margin: 8px 0;
+}
+
+.slo-row__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.slo-row__name {
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.slo-badge {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.slo-badge--ok {
+  background: rgba(45, 212, 167, 0.15);
+  color: var(--pitch);
+}
+
+.slo-badge--bad {
+  background: rgba(255, 99, 99, 0.15);
+  color: var(--alert);
+}
+
+.slo-bar {
+  height: 8px;
+  background: var(--bg-elev);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.slo-bar__fill {
+  height: 100%;
+}
+
+.slo-bar__fill--ok {
+  background: var(--pitch);
+}
+
+.slo-bar__fill--warning {
+  background: var(--amber);
+}
+
+.slo-bar__fill--critical {
+  background: var(--alert);
+}
+
+.slo-row__detail {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--ink-dim);
+}

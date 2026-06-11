@@ -298,3 +298,36 @@ def test_build_components_has_all_collaborators():
     assert comp.policy is not None
     assert comp.data_rights is not None
     assert comp.alerts.rule_count == 2
+    # v1.5 collaborators
+    assert comp.tenants.resolve(principal_tenant=None, header_tenant=None).tenant_id == "default"
+    assert comp.versions.current == "v1"
+    assert comp.outbox.size == 0
+    assert comp.secrets is not None
+    assert comp.bulkhead.max_concurrent >= 1
+    assert comp.retention.policy_count == 2
+    assert "search" in comp.slo.services()
+
+
+def test_build_retention_policies():
+    from app.analytics.recorder import AnalyticsRecorder
+    from app.audit.log import AuditLog
+    from app.core.providers import build_retention
+
+    sweeper = build_retention(Settings(app_mode=AppMode.MOCK), AnalyticsRecorder(), AuditLog())
+    assert sweeper.policy_count == 2
+
+
+def test_build_slo_tracker_targets():
+    from app.core.providers import build_slo_tracker
+
+    tracker = build_slo_tracker()
+    assert tracker.report("search").target == 0.99
+    assert tracker.report("chat").target == 0.99
+
+
+async def test_orchestrator_records_slo():
+    comp = build_components(Settings(app_mode=AppMode.MOCK))
+    await comp.agent.search("halal food", None, 3)
+    await comp.agent.chat("stadium", None)
+    assert comp.slo.report("search").total >= 1
+    assert comp.slo.report("chat").total >= 1

@@ -57,6 +57,8 @@ describe("AdminDashboard", () => {
         status={status}
         usage={usage}
         audit={audit}
+        slo={null}
+        version={null}
         loading={false}
         busy={false}
         error={null}
@@ -71,12 +73,39 @@ describe("AdminDashboard", () => {
     expect(screen.getAllByTestId("audit-row").length).toBeGreaterThan(0);
   });
 
+  it("renders SLO panel and version badge when present", () => {
+    render(
+      <AdminDashboard
+        status={status}
+        usage={null}
+        audit={null}
+        slo={{
+          services: [
+            { service: "search", target: 0.99, total: 100, success_ratio: 1, meeting_slo: true, budget_remaining: 1 },
+          ],
+        }}
+        version={{ current: "v1", supported: ["v1"] }}
+        loading={false}
+        busy={false}
+        error={null}
+        onRefresh={() => {}}
+        onReindex={() => {}}
+        onFlush={() => {}}
+      />,
+    );
+    expect(screen.getByTestId("admin-slo")).toBeInTheDocument();
+    expect(screen.getByTestId("slo-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("version-badge")).toHaveTextContent("API v1");
+  });
+
   it("shows tampered audit state", () => {
     render(
       <AdminDashboard
         status={{ ...status, data_stale: true }}
         usage={null}
         audit={{ ...audit, verified: false }}
+        slo={null}
+        version={null}
         loading={false}
         busy={false}
         error={null}
@@ -95,6 +124,8 @@ describe("AdminDashboard", () => {
         status={null}
         usage={null}
         audit={null}
+        slo={null}
+        version={null}
         loading={true}
         busy={false}
         error="boom"
@@ -115,6 +146,8 @@ describe("AdminDashboard", () => {
         status={status}
         usage={null}
         audit={null}
+        slo={null}
+        version={null}
         loading={false}
         busy={false}
         error={null}
@@ -136,6 +169,8 @@ describe("AdminDashboard", () => {
         status={status}
         usage={null}
         audit={null}
+        slo={null}
+        version={null}
         loading={false}
         busy={false}
         error={null}
@@ -153,6 +188,8 @@ describe("AdminDashboard", () => {
         status={status}
         usage={null}
         audit={null}
+        slo={null}
+        version={null}
         loading={false}
         busy={true}
         error={null}
@@ -172,6 +209,8 @@ describe("useAdmin", () => {
     mockedApi.adminStatus = vi.fn().mockResolvedValue(status);
     mockedApi.usage = vi.fn().mockResolvedValue(usage);
     mockedApi.auditLog = vi.fn().mockResolvedValue(audit);
+    mockedApi.sloReport = vi.fn().mockResolvedValue({ services: [] });
+    mockedApi.versionInfo = vi.fn().mockResolvedValue({ current: "v1", supported: ["v1"] });
     mockedApi.reindex = vi.fn().mockResolvedValue({ indexed: 16, healthy: true });
     mockedApi.flushCache = vi.fn().mockResolvedValue({ flushed: true });
   });
@@ -184,6 +223,8 @@ describe("useAdmin", () => {
     expect(result.current.state.status?.events).toBe(16);
     expect(result.current.state.usage?.remaining).toBe(7);
     expect(result.current.state.audit?.verified).toBe(true);
+    expect(result.current.state.slo).not.toBeNull();
+    expect(result.current.state.version?.current).toBe("v1");
   });
 
   it("refresh captures errors", async () => {

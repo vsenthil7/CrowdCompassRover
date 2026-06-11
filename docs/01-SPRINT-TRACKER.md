@@ -75,6 +75,18 @@ next begins.
 | S53 | Frontend a11y + client | a11y helpers module, admin/usage/audit API client | ✅ |
 | S54 | Admin dashboard | AdminDashboard, UsageView, useAdmin hook | ✅ |
 | S55 | Frontend tests | Tests for new components/hook; restore 100% on both | ✅ |
+| S56 | Tenancy | Tenant context, validation, allow-list resolver | ✅ |
+| S57 | API versioning | Version registry + deprecation/sunset headers | ✅ |
+| S58 | Outbox | Transactional outbox, relay, retry, dead-letter | ✅ |
+| S59 | Secrets | Provider abstraction + rotation overlap window | ✅ |
+| S60 | Concurrency | Bulkhead limiter with bounded queue | ✅ |
+| S61 | Retention | TTL sweeper for analytics + audit | ✅ |
+| S62 | SLO | Error-budget + SLO computation from outcomes | ✅ |
+| S63 | Composition + API | Wire all into factory; 6 new endpoints | ✅ |
+| S64 | Backend tests | Tests for all new modules; restore 100% | ✅ |
+| S65 | Frontend client | SLO/version types + API client methods | ✅ |
+| S66 | SLO + version UI | SloPanel, VersionBadge, dashboard wiring | ✅ |
+| S67 | Frontend tests | Tests for new components/hook; restore 100% on both | ✅ |
 
 ---
 
@@ -346,11 +358,70 @@ methods, and the App ops-toggle flow. **Backend 371 / Frontend 115 tests, both 1
 
 ---
 
+## Scale & Reliability Expansion (v1.5.0)
+
+### S56 — Tenancy ✅
+`tenancy/`: `TenantContext` (contextvar-propagated), id validation/normalisation, and a
+`TenantResolver` (principal → header → default) with an optional allow-list and typed
+400 errors for invalid/unknown tenants.
+
+### S57 — API versioning ✅
+`versioning/`: `VersionRegistry` tracking supported versions, the current one, and
+deprecation/sunset advisory headers; default registry seeds `v1`.
+
+### S58 — Outbox ✅
+`outbox/`: transactional `Outbox` with `enqueue`, a `relay` that drains pending messages to
+a sink with retries, `PENDING/DELIVERED/FAILED/DEAD` states, and dead-letter inspection —
+closing the "event lost after commit" gap.
+
+### S59 — Secrets ✅
+`secrets/`: `SecretProvider` protocol + `EnvSecretProvider`, plus `RotatingSecret` accepting
+the previous value during a configurable overlap window so rotation doesn't break in-flight
+clients.
+
+### S60 — Concurrency ✅
+`concurrency/`: `Bulkhead` capping simultaneous in-flight work with a bounded wait queue and
+fast `BulkheadFullError` (503) when saturated; counters survive cancellation.
+
+### S61 — Retention ✅
+`retention/`: policy-driven `RetentionSweeper` pruning records older than a max age.
+Analytics and the audit log gained `prune_before`; audit `verify()` was made robust to a
+pruned prefix so retention isn't mistaken for tampering.
+
+### S62 — SLO ✅
+`slo/`: `SloTracker` recording success/failure outcomes over a rolling window and computing
+success ratio, error budget, and budget-remaining per service; the orchestrator records
+search/chat outcomes.
+
+### S63 — Composition + API ✅
+Factory wires tenants, versions, outbox, secrets, bulkhead, retention, and SLO; the agent
+records SLO outcomes. New endpoints: `/slo`, `/version` (public), `/admin/outbox`,
+`/admin/bulkhead`, `/admin/retention/sweep`; `/usage/{tenant}` now validates the tenant.
+
+### S64 — Backend tests ✅
+New suites for tenancy, versioning, outbox, secrets, bulkhead, retention, SLO, the new
+factory builders, and endpoints; covered the bulkhead queue-cancellation branch. **Backend
+422 tests, 100%.**
+
+### S65 — Frontend client ✅
+SLO/version types and `sloReport`/`versionInfo` API client methods; `useAdmin` extended to
+load both.
+
+### S66 — SLO + version UI ✅
+`SloPanel` (per-service budget bars with ok/warning/critical states) and `VersionBadge`,
+wired into the admin dashboard.
+
+### S67 — Frontend tests ✅
+Tests for `SloPanel`, `VersionBadge`, the extended `useAdmin`, the new client methods, and
+the dashboard rendering. **Backend 422 / Frontend 124 tests, both 100%.**
+
+---
+
 ## Coverage Ledger
 | Layer | Tool | Target | Latest |
 |-------|------|-------:|-------:|
-| Backend | pytest-cov | 100% | ✅ 100.00% (371 tests, 2964 stmts) |
-| Frontend | vitest --coverage | 100% | ✅ 100.00% (115 tests) |
+| Backend | pytest-cov | 100% | ✅ 100.00% (422 tests, 3377 stmts) |
+| Frontend | vitest --coverage | 100% | ✅ 100.00% (124 tests) |
 | E2E flows | Playwright | 100% of journeys | ✅ 8 journeys (browser run pending CDN access; flows validated via live API) |
 
 ## Access Ledger (live)

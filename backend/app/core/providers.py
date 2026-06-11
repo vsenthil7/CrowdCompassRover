@@ -10,6 +10,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app.admin.service import AdminService
+from app.concurrency.bulkhead import Bulkhead
+from app.outbox.store import Outbox
+from app.retention.sweeper import RetentionPolicy, RetentionSweeper
+from app.secrets.provider import EnvSecretProvider
+from app.slo.tracker import SloTracker
+from app.tenancy.context import TenantResolver
+from app.versioning.registry import VersionRegistry, default_registry
 from app.audit.log import AuditLog
 from app.authz.policy import KeyBinding, PolicyEngine, PrincipalResolver
 from app.gdpr.data_rights import DataRightsService
@@ -75,6 +82,13 @@ class Components:
     meter: "UsageMeter"
     data_rights: "DataRightsService"
     alerts: "AlertManager"
+    tenants: "TenantResolver"
+    versions: "VersionRegistry"
+    outbox: "Outbox"
+    secrets: "EnvSecretProvider"
+    bulkhead: "Bulkhead"
+    retention: "RetentionSweeper"
+    slo: "SloTracker"
     closables: list[object]
 
 
@@ -236,6 +250,30 @@ def build_alert_manager() -> AlertManager:
     return manager
 
 
+def build_retention(
+    settings: Settings, analytics: AnalyticsRecorder, audit: AuditLog
+) -> RetentionSweeper:
+    """Register retention policies for analytics and audit data."""
+    sweeper = RetentionSweeper()
+    sweeper.register(
+        RetentionPolicy("analytics", max_age_seconds=settings.retention_analytics_seconds),
+        analytics,
+    )
+    sweeper.register(
+        RetentionPolicy("audit", max_age_seconds=settings.retention_audit_seconds),
+        audit,
+    )
+    return sweeper
+
+
+def build_slo_tracker() -> SloTracker:
+    """Build the SLO tracker with default targets."""
+    tracker = SloTracker()
+    tracker.set_target("search", 0.99)
+    tracker.set_target("chat", 0.99)
+    return tracker
+
+
 def build_components(settings: Settings) -> Components:
     """Assemble the full agent for the active mode."""
     base, c1 = build_base_search_provider(settings)
@@ -272,6 +310,21 @@ def build_components(settings: Settings) -> Components:
     data_rights = DataRightsService(sessions=sessions, saved_searches=saved, audit=audit)
     alerts = build_alert_manager()
 
+    tenants = TenantResolver(default="default")
+    versions = default_registry()
+    outbox = Outbox()
+    secrets = EnvSecretProvider(
+        {
+            "elastic_mcp_api_key": settings.elastic_mcp_api_key or "",
+            "gemini_api_key": settings.gemini_api_key or "",
+        }
+    )
+    bulkhead = Bulkhead(
+        "search", max_concurrent=settings.bulkhead_max_concurrent, max_queue=settings.bulkhead_max_queue
+    )
+    retention = build_retention(settings, analytics, audit)
+    slo = build_slo_tracker()
+
     agent = RoverAgent(
         planner=planner,
         pipeline=pipeline,
@@ -281,6 +334,7 @@ def build_components(settings: Settings) -> Components:
         routes=routes,
         tracer=tracer,
         events=bus,
+        slo=slo,
     )
     return Components(
         agent=agent,
@@ -301,5 +355,12 @@ def build_components(settings: Settings) -> Components:
         meter=meter,
         data_rights=data_rights,
         alerts=alerts,
+        tenants=tenants,
+        versions=versions,
+        outbox=outbox,
+        secrets=secrets,
+        bulkhead=bulkhead,
+        retention=retention,
+        slo=slo,
         closables=[*c1, *c2, *c3],
     )

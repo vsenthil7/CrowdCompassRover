@@ -100,3 +100,33 @@ def get_data_rights():
 def get_idempotency():
     """Return the idempotency store (FastAPI dependency)."""
     return _get_components().idempotency
+
+
+def get_slo():
+    """Return the SLO tracker (FastAPI dependency)."""
+    return _get_components().slo
+
+
+def get_versions():
+    """Return the API version registry (FastAPI dependency)."""
+    return _get_components().versions
+
+
+def get_outbox():
+    """Return the outbox (FastAPI dependency)."""
+    return _get_components().outbox
+
+
+def get_bulkhead():
+    """Return the search bulkhead (FastAPI dependency)."""
+    return _get_components().bulkhead
+
+
+def get_retention():
+    """Return the retention sweeper (FastAPI dependency)."""
+    return _get_components().retention
+
+
+def get_tenants():
+    """Return the tenant resolver (FastAPI dependency)."""
+    return _get_components().tenants

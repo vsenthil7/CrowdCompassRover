@@ -103,6 +103,24 @@ export interface AuditReport {
   entries: AuditEntry[];
 }
 
+export interface SloService {
+  service: string;
+  target: number;
+  total: number;
+  success_ratio: number;
+  meeting_slo: boolean;
+  budget_remaining: number;
+}
+
+export interface SloReport {
+  services: SloService[];
+}
+
+export interface VersionInfo {
+  current: string;
+  supported: string[];
+}
+
 export interface Citation {
   event_id: string;
   name: string;

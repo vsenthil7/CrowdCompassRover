@@ -70,6 +70,8 @@ export function App() {
             status={admin.state.status}
             usage={admin.state.usage}
             audit={admin.state.audit}
+            slo={admin.state.slo}
+            version={admin.state.version}
             loading={admin.state.loading}
             busy={admin.state.busy}
             error={admin.state.error}

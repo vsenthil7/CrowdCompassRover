@@ -13,14 +13,20 @@ from app.api.deps import (
     get_agent,
     get_analytics,
     get_audit,
+    get_bulkhead,
     get_data_rights,
     get_flags,
     get_health_registry,
     get_idempotency,
     get_meter,
+    get_outbox,
+    get_retention,
     get_saved_searches,
     get_sessions,
+    get_slo,
+    get_tenants,
     get_tracer,
+    get_versions,
     get_webhooks,
 )
 from app.idempotency.store import KeyState
@@ -294,16 +300,18 @@ async def delete_webhook(sub_id: str, registry=Depends(get_webhooks)) -> dict:
 
 
 @router.get("/usage/{tenant}")
-async def usage(tenant: str, meter=Depends(get_meter)) -> dict:
-    """Return current-period usage and remaining quota for a tenant."""
-    current = meter.current(tenant)
+async def usage(tenant: str, meter=Depends(get_meter), tenants=Depends(get_tenants)) -> dict:
+    """Return current-period usage and remaining quota for a validated tenant."""
+    ctx = tenants.resolve(principal_tenant=None, header_tenant=tenant)
+    tenant_id = ctx.tenant_id
+    current = meter.current(tenant_id)
     return {
-        "tenant": tenant,
+        "tenant": tenant_id,
         "period": current.period,
         "count": current.count,
         "by_action": current.by_action,
-        "remaining": meter.remaining(tenant),
-        "quota": meter.quota_for(tenant),
+        "remaining": meter.remaining(tenant_id),
+        "quota": meter.quota_for(tenant_id),
     }
 
 
@@ -324,6 +332,64 @@ async def gdpr_purge(subject: str, service=Depends(get_data_rights), audit=Depen
         "sessions_removed": result.sessions_removed,
         "saved_searches_removed": result.saved_searches_removed,
     }
+
+
+@router.get("/slo")
+async def slo_report(tracker=Depends(get_slo)) -> dict:
+    """Per-service SLO status and error budgets."""
+    out = []
+    for service in tracker.services():
+        r = tracker.report(service)
+        out.append(
+            {
+                "service": r.service,
+                "target": r.target,
+                "total": r.total,
+                "success_ratio": round(r.success_ratio, 4),
+                "meeting_slo": r.meeting_slo,
+                "budget_remaining": round(r.budget_remaining, 4),
+            }
+        )
+    return {"services": out}
+
+
+@router.get("/version")
+async def version_info(registry=Depends(get_versions)) -> dict:
+    """Supported API versions and the current one."""
+    return {"current": registry.current, "supported": registry.supported_names()}
+
+
+@router.get("/admin/outbox")
+async def outbox_stats(outbox=Depends(get_outbox)) -> dict:
+    """Outbox message counts by state, with any dead letters."""
+    return {
+        "stats": outbox.stats(),
+        "dead_letters": [
+            {"id": m.id, "topic": m.topic, "attempts": m.attempts, "error": m.last_error}
+            for m in outbox.dead_letters()
+        ],
+    }
+
+
+@router.get("/admin/bulkhead")
+async def bulkhead_stats(bulkhead=Depends(get_bulkhead)) -> dict:
+    """Concurrency bulkhead utilisation."""
+    s = bulkhead.stats()
+    return {
+        "name": s.name,
+        "max_concurrent": s.max_concurrent,
+        "active": s.active,
+        "queued": s.queued,
+        "rejected": s.rejected,
+    }
+
+
+@router.post("/admin/retention/sweep")
+async def retention_sweep(sweeper=Depends(get_retention), audit=Depends(get_audit)) -> dict:
+    """Apply retention policies, returning per-source removal counts."""
+    results = sweeper.sweep()
+    audit.record("system", "default", "retention.sweep", "all", "success")
+    return {"swept": [{"name": r.name, "removed": r.removed} for r in results]}
 
 
 @router.post("/chat/stream")

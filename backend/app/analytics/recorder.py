@@ -112,3 +112,11 @@ class AnalyticsRecorder:
     def size(self) -> int:
         """Number of buffered events."""
         return len(self._events)
+
+    def prune_before(self, cutoff_ts: float) -> int:
+        """Drop events older than cutoff_ts; return how many were removed."""
+        kept = [e for e in self._events if e.ts >= cutoff_ts]
+        removed = len(self._events) - len(kept)
+        self._events.clear()
+        self._events.extend(kept)
+        return removed

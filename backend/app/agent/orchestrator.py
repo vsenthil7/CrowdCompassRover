@@ -26,6 +26,7 @@ from app.models.domain import (
 from app.pagination.cursor import Page, paginate
 from app.security.sanitize import sanitize_query
 from app.services.search_pipeline import SearchPipeline
+from app.slo.tracker import SloTracker
 from app.tracing.tracer import Tracer
 
 
@@ -42,6 +43,7 @@ class RoverAgent:
         routes: RouteProvider | None = None,
         tracer: Tracer | None = None,
         events: EventBus | None = None,
+        slo: SloTracker | None = None,
         *,
         clock=time.perf_counter,
     ) -> None:
@@ -53,6 +55,7 @@ class RoverAgent:
         self._routes = routes
         self._tracer = tracer or Tracer()
         self._events = events
+        self._slo = slo
         self._clock = clock
 
     async def _plan_with_context(
@@ -116,6 +119,8 @@ class RoverAgent:
                 results = await self._pipeline.run(plan)
             span.set_attribute("results", len(results))
             await self._emit(plan, len(results), (self._clock() - start) * 1000)
+            if self._slo is not None:
+                self._slo.record("search", True)
 
             next_cursor = None
             total = None
@@ -149,6 +154,8 @@ class RoverAgent:
             plan = await self._plan_with_context(query, user_location, top_k, session_id)
             results = await self._pipeline.run(plan)
             await self._emit(plan, len(results), (self._clock() - start) * 1000)
+            if self._slo is not None:
+                self._slo.record("chat", True)
             with self._tracer.start("ground"):
                 return await self._answerer.answer(plan, results)
 

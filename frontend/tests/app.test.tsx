@@ -372,6 +372,8 @@ describe("App", () => {
       tenant: "t", period: "2026-06", count: 1, by_action: {}, remaining: 9, quota: 10,
     });
     mockedApi.auditLog.mockResolvedValue({ verified: true, count: 0, entries: [] });
+    mockedApi.sloReport.mockResolvedValue({ services: [] });
+    mockedApi.versionInfo.mockResolvedValue({ current: "v1", supported: ["v1"] });
     render(<App />);
     fireEvent.click(screen.getByTestId("admin-toggle"));
     await waitFor(() => expect(screen.getByTestId("admin-dashboard")).toBeInTheDocument());
