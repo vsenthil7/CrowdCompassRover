@@ -5,6 +5,7 @@ contracts used by the API and agent layers.
 """
 from __future__ import annotations
 
+from datetime import datetime
 from enum import Enum
 
 from pydantic import BaseModel, Field
@@ -121,6 +122,17 @@ class BatchSearchRequest(BaseModel):
     queries: list[str] = Field(min_length=1, max_length=20)
     user_location: GeoPoint | None = None
     top_k: int = Field(default=5, ge=1, le=50)
+
+
+class LiveSignalIn(BaseModel):
+    """Report a live operational signal for a venue (crowd / wait / transient closure)."""
+
+    venue_id: str = Field(min_length=1, max_length=128)
+    crowd: str | None = Field(default=None, max_length=16)
+    wait_minutes: int | None = Field(default=None, ge=0, le=600)
+    temporarily_closed: bool = False
+    note: str = Field(default="", max_length=280)
+    observed_at: datetime | None = None
 
 
 class ChatRequest(BaseModel):

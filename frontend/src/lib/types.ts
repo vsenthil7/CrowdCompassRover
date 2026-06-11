@@ -242,3 +242,28 @@ export interface BulkheadStats {
 export interface RetentionSweepResult {
   swept: { name: string; removed: number }[];
 }
+
+// --- Venue availability (opening hours + live crowd signals) ---
+
+export type OpenStateValue = "open" | "closed" | "opening_soon" | "closing_soon";
+export type CrowdValue = "quiet" | "moderate" | "busy" | "packed" | "unknown";
+
+export interface VenueAvailability {
+  venue_id: string;
+  open_state: OpenStateValue;
+  is_open: boolean;
+  effectively_open: boolean;
+  minutes_to_transition: number | null;
+  crowd: CrowdValue;
+  wait_minutes: number | null;
+  temporarily_closed: boolean;
+  note: string;
+}
+
+export interface LiveSignalReport {
+  venue_id: string;
+  crowd?: CrowdValue;
+  wait_minutes?: number;
+  temporarily_closed?: boolean;
+  note?: string;
+}

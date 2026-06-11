@@ -17,6 +17,8 @@ import type {
   SloReport,
   TracesReport,
   UsageInfo,
+  VenueAvailability,
+  LiveSignalReport,
   VersionInfo,
 } from "./types";
 
@@ -177,4 +179,15 @@ export async function bulkheadStats(): Promise<BulkheadStats> {
 
 export async function sweepRetention(): Promise<RetentionSweepResult> {
   return postJson<RetentionSweepResult>("/admin/retention/sweep", {});
+}
+
+// --- Venue availability (opening hours + live crowd) ---
+
+export async function availability(venueId: string, at?: string): Promise<VenueAvailability> {
+  const q = at ? `?at=${encodeURIComponent(at)}` : "";
+  return getJson<VenueAvailability>(`/availability/${encodeURIComponent(venueId)}${q}`);
+}
+
+export async function reportSignal(report: LiveSignalReport): Promise<VenueAvailability> {
+  return postJson<VenueAvailability>("/availability/signals", report);
 }

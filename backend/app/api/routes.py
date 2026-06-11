@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, Request, Response
 from sse_starlette.sse import EventSourceResponse
@@ -22,6 +23,7 @@ from app.api.deps import (
     get_outbox,
     get_outbox_sink,
     get_retention,
+    get_availability,
     get_saved_searches,
     get_sessions,
     get_slo,
@@ -34,12 +36,13 @@ from app.idempotency.store import KeyState
 from app.conversation.session import SessionStore
 from app.core.config import Settings, get_settings
 from app.enrichment.routes import TravelMode
-from app.errors.exceptions import NotFoundError
+from app.errors.exceptions import NotFoundError, ValidationError
 from app.health.checks import HealthRegistry
 from app.models.domain import (
     BatchSearchRequest,
     ChatAnswer,
     ChatRequest,
+    LiveSignalIn,
     RouteRequest,
     SavedSearchRequest,
     SearchRequest,
@@ -397,6 +400,53 @@ async def retention_sweep(sweeper=Depends(get_retention), audit=Depends(get_audi
     results = sweeper.sweep()
     audit.record("system", "default", "retention.sweep", "all", "success")
     return {"swept": [{"name": r.name, "removed": r.removed} for r in results]}
+
+
+@router.get("/availability/{venue_id}")
+async def venue_availability(
+    venue_id: str,
+    at: str | None = None,
+    availability=Depends(get_availability),
+) -> dict:
+    """Resolve a venue's combined opening-hours + live availability.
+
+    Optional ``at`` is an ISO-8601 instant ("2026-06-02T20:30:00Z"); defaults to now.
+    """
+    when = None
+    if at is not None:
+        try:
+            when = datetime.fromisoformat(at.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ValidationError(f"invalid 'at' timestamp: {at}") from exc
+    return availability.resolve(venue_id, when).to_dict()
+
+
+@router.post("/availability/signals")
+async def report_live_signal(
+    body: LiveSignalIn,
+    availability=Depends(get_availability),
+) -> dict:
+    """Report a live operational signal (crowd / wait / transient closure) for a venue."""
+    from datetime import timezone as _tz
+
+    from app.livesignals.store import CrowdLevel, LiveSignal
+
+    observed = body.observed_at or datetime.now(_tz.utc)
+    try:
+        crowd = CrowdLevel(body.crowd) if body.crowd else CrowdLevel.UNKNOWN
+    except ValueError as exc:
+        raise ValidationError(f"invalid crowd level: {body.crowd}") from exc
+    availability.signals.report(
+        LiveSignal(
+            venue_id=body.venue_id,
+            observed_at=observed,
+            crowd=crowd,
+            wait_minutes=body.wait_minutes,
+            temporarily_closed=body.temporarily_closed,
+            note=body.note or "",
+        )
+    )
+    return availability.resolve(body.venue_id).to_dict()
 
 
 @router.post("/chat/stream")

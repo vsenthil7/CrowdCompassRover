@@ -324,3 +324,57 @@ relay → Outbox.relay(WebhookOutboxSink)
 Search and chat retrieval now run behind a concurrency **bulkhead** (fast 503 when
 saturated), and the **SLO tracker** records both successes and failures for accurate error
 budgets.
+
+---
+
+## Temporal availability & live signals (S73)
+
+The product's time-sensitive queries ("open *now*", "route to the stadium *now*") are backed
+by a real availability layer: timezone-aware opening hours (with overnight windows, holiday
+/ match-day overrides) joined with fast-changing live signals (crowd, wait, transient
+closure) that decay toward "unknown" as they age. These signals also feed the reranker, which
+demotes crowded, closing-soon, and temporarily-closed venues.
+
+### GET `/api/availability/{venue_id}`
+
+Resolve a venue's combined opening-hours + live availability.
+
+Query params:
+- `at` *(optional)* — ISO-8601 instant (e.g. `2026-06-02T20:30:00Z`). Defaults to now.
+
+Response:
+```json
+{
+  "venue_id": "nyc-halal-cart-8th",
+  "open_state": "closing_soon",
+  "is_open": true,
+  "effectively_open": true,
+  "minutes_to_transition": 20,
+  "crowd": "busy",
+  "wait_minutes": 15,
+  "temporarily_closed": false,
+  "note": ""
+}
+```
+- `open_state` ∈ `open` | `closed` | `opening_soon` | `closing_soon`.
+- `effectively_open` = open per the schedule **and** not under a trusted transient closure.
+- `minutes_to_transition` = minutes to close (if open) or to open (if closed), or `null`.
+- A malformed `at` returns `422` (validation error).
+
+### POST `/api/availability/signals`
+
+Report a live operational signal for a venue.
+
+Request:
+```json
+{
+  "venue_id": "nyc-fan-zone-central",
+  "crowd": "packed",
+  "wait_minutes": 30,
+  "temporarily_closed": false,
+  "note": "match crowd"
+}
+```
+- `crowd` ∈ `quiet` | `moderate` | `busy` | `packed` | `unknown`; an invalid value → `422`.
+- `observed_at` *(optional)* — defaults to now; older reports never override newer ones.
+- Returns the freshly-resolved `VenueAvailability` (same shape as the GET).

@@ -948,3 +948,21 @@ body {
 .bulkhead-bar__fill--warning { background: var(--amber); }
 .bulkhead-bar__fill--critical { background: var(--alert); }
 .bulkhead__detail { font-size: 0.78rem; color: var(--ink-dim); }
+
+/* ── Venue availability badge (opening hours + live crowd) ── */
+.avail { display: inline-flex; flex-direction: column; gap: 3px; align-items: flex-end; }
+.avail-badge {
+  font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: var(--radius);
+  white-space: nowrap;
+}
+.avail-badge--open { color: var(--pitch); background: color-mix(in srgb, var(--pitch) 16%, transparent); }
+.avail-badge--closed { color: var(--alert); background: color-mix(in srgb, var(--alert) 16%, transparent); }
+.avail-badge--soon { color: var(--amber); background: color-mix(in srgb, var(--amber) 18%, transparent); }
+.crowd {
+  font-size: 0.66rem; padding: 1px 6px; border-radius: var(--radius); color: var(--ink-dim);
+  white-space: nowrap;
+}
+.crowd--quiet { color: var(--pitch); }
+.crowd--moderate { color: var(--ink-dim); }
+.crowd--busy { color: var(--amber); }
+.crowd--packed { color: var(--alert); font-weight: 700; }

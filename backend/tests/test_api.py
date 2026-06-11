@@ -329,6 +329,59 @@ async def test_retention_sweep_endpoint(client):
     assert {"analytics", "audit"} <= names
 
 
+async def test_availability_endpoint_default_now(client):
+    r = await client.get("/api/availability/nyc-penn-station")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["venue_id"] == "nyc-penn-station"
+    # Penn Station is transit → always open.
+    assert body["is_open"] is True
+    assert body["open_state"] == "open"
+
+
+async def test_availability_endpoint_at_time(client):
+    # A restaurant at 04:00 UTC should be closed (hours 08:00–23:30).
+    r = await client.get("/api/availability/nyc-halal-cart-8th?at=2026-06-02T04:00:00Z")
+    assert r.status_code == 200
+    assert r.json()["is_open"] is False
+
+
+async def test_availability_endpoint_bad_time(client):
+    r = await client.get("/api/availability/nyc-penn-station?at=not-a-time")
+    assert r.status_code == 422
+
+
+async def test_report_live_signal_then_reflected(client):
+    # Report a 'packed' signal and confirm the resolved availability reflects it.
+    r = await client.post(
+        "/api/availability/signals",
+        json={"venue_id": "nyc-penn-station", "crowd": "packed", "wait_minutes": 30},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["crowd"] == "packed"
+    assert body["wait_minutes"] == 30
+
+
+async def test_report_live_signal_temporary_closure(client):
+    r = await client.post(
+        "/api/availability/signals",
+        json={"venue_id": "nyc-fan-zone-central", "temporarily_closed": True, "note": "weather"},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["temporarily_closed"] is True
+    assert body["effectively_open"] is False
+
+
+async def test_report_live_signal_bad_crowd(client):
+    r = await client.post(
+        "/api/availability/signals",
+        json={"venue_id": "nyc-penn-station", "crowd": "bananas"},
+    )
+    assert r.status_code == 422
+
+
 async def test_get_agent_lazy_init():
     # When components not initialized, get_agent should build them on demand.
     deps._components = None
@@ -382,6 +435,7 @@ async def test_shutdown_closes_closables():
     from app.concurrency.bulkhead import Bulkhead
     from app.retention.sweeper import RetentionSweeper
     from app.slo.tracker import SloTracker
+    from app.availability.service import AvailabilityService
 
     repo = InMemoryEventRepository()
     flags = FeatureFlags()
@@ -422,6 +476,7 @@ async def test_shutdown_closes_closables():
         bulkhead=Bulkhead("test"),
         retention=RetentionSweeper(),
         slo=SloTracker(),
+        availability=AvailabilityService(),
         closables=[_C(), object()],
     )
     await deps.shutdown_components()

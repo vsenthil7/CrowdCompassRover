@@ -1,13 +1,15 @@
-import type { ScoredEvent } from "../lib/types";
+import type { ScoredEvent, VenueAvailability } from "../lib/types";
 import { CATEGORY_META, formatDistance } from "../lib/display";
+import { AvailabilityBadge } from "./AvailabilityBadge";
 
 interface Props {
   hit: ScoredEvent;
   index: number;
   onRoute?: (hit: ScoredEvent) => void;
+  availability?: VenueAvailability;
 }
 
-export function ResultRow({ hit, index, onRoute }: Props) {
+export function ResultRow({ hit, index, onRoute, availability }: Props) {
   const meta = CATEGORY_META[hit.event.category];
   const dist = formatDistance(hit.distance_km);
   return (
@@ -25,9 +27,13 @@ export function ResultRow({ hit, index, onRoute }: Props) {
         </div>
       </div>
       <div className="row__right">
-        <span className={`badge ${hit.event.open_now ? "badge--open" : "badge--closed"}`}>
-          {hit.event.open_now ? "Open" : "Closed"}
-        </span>
+        {availability ? (
+          <AvailabilityBadge availability={availability} />
+        ) : (
+          <span className={`badge ${hit.event.open_now ? "badge--open" : "badge--closed"}`}>
+            {hit.event.open_now ? "Open" : "Closed"}
+          </span>
+        )}
         {dist ? <span className="row__dist">{dist}</span> : null}
         {onRoute ? (
           <button

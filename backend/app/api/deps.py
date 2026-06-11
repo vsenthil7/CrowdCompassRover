@@ -132,6 +132,11 @@ def get_retention():
     return _get_components().retention
 
 
+def get_availability():
+    """Return the availability service (FastAPI dependency)."""
+    return _get_components().availability
+
+
 def get_tenants():
     """Return the tenant resolver (FastAPI dependency)."""
     return _get_components().tenants

@@ -8,8 +8,22 @@ tunable. Reranking is pure and deterministic, so it is fully testable.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
+from typing import Protocol
 
 from app.models.domain import QueryPlan, ScoredEvent
+
+
+class _Availability(Protocol):
+    open_state: object
+    temporarily_closed: bool
+
+
+class AvailabilityResolver(Protocol):
+    """Minimal interface the reranker needs from an availability source."""
+
+    def resolve(self, venue_id: str, when: datetime | None = ...) -> _Availability: ...
+    def crowd_penalty(self, venue_id: str, when: datetime | None = ...) -> float: ...
 
 
 @dataclass
@@ -21,6 +35,12 @@ class RerankWeights:
     proximity_boost: float = 0.20
     capacity_boost: float = 0.05
     proximity_scale_km: float = 10.0
+    # Availability-aware signals (time + live crowd). Applied only when an
+    # availability resolver is supplied to rerank(); otherwise inert, so the
+    # static open_now path is unchanged.
+    closing_soon_penalty: float = 0.10
+    crowd_penalty: float = 0.20
+    temporarily_closed_penalty: float = 0.50
 
 
 def _proximity_factor(distance_km: float | None, scale: float) -> float:
@@ -34,8 +54,16 @@ def rerank(
     plan: QueryPlan,
     results: list[ScoredEvent],
     weights: RerankWeights | None = None,
+    availability: "AvailabilityResolver | None" = None,
+    when: "datetime | None" = None,
 ) -> list[ScoredEvent]:
-    """Return results re-ordered by a composite operational score."""
+    """Return results re-ordered by a composite operational score.
+
+    When an ``availability`` resolver is supplied, time-aware signals refine the static
+    ``open_now`` boost: venues closing soon are gently penalised, crowded venues are demoted
+    in proportion to (freshness-decayed) crowd level, and venues under a trusted transient
+    closure are heavily penalised. Without a resolver, behaviour is unchanged.
+    """
     w = weights or RerankWeights()
     rescored: list[tuple[float, ScoredEvent]] = []
     max_capacity = max((r.event.capacity or 0) for r in results) if results else 0
@@ -47,6 +75,15 @@ def rerank(
         score += w.proximity_boost * _proximity_factor(r.distance_km, w.proximity_scale_km)
         if max_capacity > 0 and r.event.capacity:
             score += w.capacity_boost * (r.event.capacity / max_capacity)
+
+        if availability is not None:
+            av = availability.resolve(r.event.id, when)
+            if av.temporarily_closed:
+                score -= w.temporarily_closed_penalty
+            if av.open_state.value == "closing_soon":
+                score -= w.closing_soon_penalty
+            score -= w.crowd_penalty * availability.crowd_penalty(r.event.id, when)
+
         rescored.append((round(score, 6), r))
 
     rescored.sort(key=lambda pair: (pair[0], -(pair[1].distance_km or 0)), reverse=True)

@@ -32,6 +32,8 @@ from app.analytics.recorder import AnalyticsRecorder
 from app.conversation.session import SessionStore
 from app.core.config import Settings
 from app.data.fixtures import load_fixture_events
+from app.availability.seed import seed_availability
+from app.availability.service import AvailabilityService
 from app.enrichment.google_routes import GoogleRouteProvider
 from app.enrichment.mock_routes import MockRouteProvider
 from app.enrichment.routes import RouteProvider
@@ -91,6 +93,7 @@ class Components:
     bulkhead: "Bulkhead"
     retention: "RetentionSweeper"
     slo: "SloTracker"
+    availability: "AvailabilityService"
     closables: list[object]
 
 
@@ -386,5 +389,6 @@ def build_components(settings: Settings) -> Components:
         bulkhead=bulkhead,
         retention=retention,
         slo=slo,
+        availability=seed_availability(load_fixture_events()),
         closables=[*c1, *c2, *c3],
     )

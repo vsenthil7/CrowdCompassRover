@@ -92,6 +92,7 @@ next begins.
 | S70 | Tenant scoped store | Structural per-tenant data partitioning | ✅ |
 | S71 | Frontend outbox panel | OutboxPanel + relay action; integration tests; 100% | ✅ |
 | S72 | Operator observability UI | Surface analytics/traces/flags/readiness/bulkhead/retention into the ops dashboard | ✅ |
+| S73 | Temporal availability + live signals | Opening-hours model, evaluator, live crowd/closure signals, availability service; reranker + API + frontend wiring | ✅ |
 
 ---
 
@@ -475,13 +476,52 @@ remaining operator-facing depth into the ops dashboard.
 
 **Backend 436 / Frontend 156 tests, both 100%.** Backend untouched; production build clean.
 
+### S73 — Temporal availability + live signals ✅
+**Gap found:** the headline use cases ("nearest *open* halal restaurant *now*", "cheapest
+route to the stadium *now*") are time-sensitive, but the model only carried a static
+``open_now`` boolean that could never reflect the query time, and there was no notion of
+live crowding or transient closures. This sprint built that missing operational layer — real
+new capability, not UI plumbing.
+
+**New backend modules (separated, pure, deterministic):**
+- ``app/availability/hours.py`` — timezone-aware weekly ``OpeningHours`` with overnight
+  windows, special-date overrides (holidays / match-days), and a 24/7 short-circuit;
+  ``TimeWindow`` with correct overnight ``contains`` / until-open / until-close maths.
+- ``app/availability/evaluator.py`` — resolves OPEN / CLOSED / OPENING_SOON / CLOSING_SOON
+  at any instant, including spillover from the *previous* local day's overnight window.
+- ``app/livesignals/store.py`` — crowd / wait-time / transient-closure signals with linear
+  **freshness decay** and a trust floor (stale reports stop influencing ranking; an old
+  "closed" note can't suppress a venue forever).
+- ``app/availability/service.py`` — joins hours + live signals into a ``VenueAvailability``
+  and a crowd-based ranking penalty.
+- ``app/availability/seed.py`` — category-based schedules for the fixture corpus (mock-mode
+  analogue of ingestion-sourced hours).
+
+**Wired in (load-bearing):**
+- ``ranking/reranker.py`` gained optional time-aware signals — demotes crowded
+  (freshness-scaled), closing-soon, and temporarily-closed venues — verified by tests where
+  a packed/closed venue drops below an identical quiet one. Inert when no resolver is passed,
+  so the static path is unchanged.
+- ``AvailabilityService`` constructed in the provider factory and added to ``Components``.
+- New endpoints: ``GET /availability/{venue_id}`` (optional ``at`` ISO instant) and
+  ``POST /availability/signals`` (report crowd / wait / transient closure).
+
+**Frontend (matches the new capability):**
+- ``api.availability`` / ``api.reportSignal`` client methods + types.
+- ``AvailabilityBadge`` (open-state with closing/opening countdown, transient-closure
+  override, crowd level + wait) and a ``useAvailability`` hook (per-venue fan-out, failures
+  swallowed so a lookup never blanks a result, optional ``at`` time).
+- ``ResultRow`` shows the live badge when availability is supplied, else the static one.
+
+**Backend 499 / Frontend 174 tests, both 100%.** Production build clean.
+
 ---
 
 ## Coverage Ledger
 | Layer | Tool | Target | Latest |
 |-------|------|-------:|-------:|
-| Backend | pytest-cov | 100% | ✅ 100.00% (436 tests, 3472 stmts) |
-| Frontend | vitest --coverage | 100% | ✅ 100.00% (156 tests) |
+| Backend | pytest-cov | 100% | ✅ 100.00% (499 tests, 3774 stmts) |
+| Frontend | vitest --coverage | 100% | ✅ 100.00% (174 tests) |
 | E2E flows | Playwright | 100% of journeys | ✅ 8 journeys (browser run pending CDN access; flows validated via live API) |
 
 ## Access Ledger (live)

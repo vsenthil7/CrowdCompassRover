@@ -246,4 +246,48 @@ describe("api client", () => {
     const s = await api.sweepRetention();
     expect(s.swept[0].removed).toBe(2);
   });
+
+  it("availability fetches venue status", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        venue_id: "v1", open_state: "open", is_open: true, effectively_open: true,
+        minutes_to_transition: null, crowd: "quiet", wait_minutes: null,
+        temporarily_closed: false, note: "",
+      }),
+    });
+    const a = await api.availability("v1");
+    expect(a.open_state).toBe("open");
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toContain("/availability/v1");
+  });
+
+  it("availability passes the 'at' query param", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        venue_id: "v1", open_state: "closed", is_open: false, effectively_open: false,
+        minutes_to_transition: null, crowd: "unknown", wait_minutes: null,
+        temporarily_closed: false, note: "",
+      }),
+    });
+    await api.availability("v1", "2026-06-02T04:00:00Z");
+    const [url] = fetchMock.mock.calls[0];
+    expect(url).toContain("at=");
+  });
+
+  it("reportSignal posts a live signal", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        venue_id: "v1", open_state: "open", is_open: true, effectively_open: true,
+        minutes_to_transition: null, crowd: "packed", wait_minutes: 30,
+        temporarily_closed: false, note: "",
+      }),
+    });
+    const a = await api.reportSignal({ venue_id: "v1", crowd: "packed", wait_minutes: 30 });
+    expect(a.crowd).toBe("packed");
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.method).toBe("POST");
+  });
 });
