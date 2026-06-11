@@ -27,11 +27,12 @@ const BASE = "/api";
 // Optional API key for authenticated (admin/analyst) calls. Supplied at build time via
 // VITE_API_KEY. When present it is sent as X-API-Key so the backend RBAC resolver grants
 // the matching role; when absent the caller stays anonymous (visitor baseline) and the
-// public search/chat flows still work. RBAC is never disabled — this only authenticates.
-const API_KEY: string = (import.meta.env.VITE_API_KEY as string | undefined) ?? "";
-
-function authHeaders(base: Record<string, string> = {}): Record<string, string> {
-  return API_KEY ? { ...base, "X-API-Key": API_KEY } : base;
+// public search/chat flows still work. RBAC is never disabled - this only authenticates.
+export function authHeaders(
+  base: Record<string, string> = {},
+  key: string = (import.meta.env.VITE_API_KEY as string | undefined) ?? "",
+): Record<string, string> {
+  return key ? { ...base, "X-API-Key": key } : base;
 }
 
 export class ApiError extends Error {

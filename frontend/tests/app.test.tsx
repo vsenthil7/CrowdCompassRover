@@ -432,4 +432,14 @@ describe("App", () => {
     await waitFor(() => expect(screen.getByTestId("answer-card")).toBeInTheDocument());
     expect(mockedApi.search).toHaveBeenCalledWith("stadium", DEFAULT_LOCATION, 5, expect.any(String));
   });
+
+  it("renders the reasoning trace and tolerates health being unavailable", async () => {
+    mockedApi.health.mockRejectedValue(new Error("health down"));
+    render(<App />);
+    fireEvent.click(screen.getByText("halal food open now"));
+    await waitFor(() => expect(screen.getByTestId("reasoning-trace")).toBeInTheDocument());
+    // With health null, the rerank step falls back to score order (features omitted).
+    expect(screen.getByTestId("trace-step-detect")).toHaveTextContent("English");
+    expect(screen.getByTestId("trace-step-rerank")).toHaveTextContent("score order");
+  });
 });

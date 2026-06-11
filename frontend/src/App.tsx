@@ -3,6 +3,7 @@ import { useAdmin } from "./hooks/useAdmin";
 import { useState } from "react";
 import { SearchControls } from "./components/SearchControls";
 import { PlanStrip } from "./components/PlanStrip";
+import { ReasoningTrace } from "./components/ReasoningTrace";
 import { AnswerCard } from "./components/AnswerCard";
 import { ResultRow } from "./components/ResultRow";
 import { FeaturePanel } from "./components/FeaturePanel";
@@ -117,6 +118,14 @@ export function App() {
         ) : null}
 
         {answer ? <AnswerCard answer={answer} /> : null}
+
+        {response ? (
+          <ReasoningTrace
+            plan={response.plan}
+            resultCount={results.length}
+            features={health ? health.features : null}
+          />
+        ) : null}
 
         {response ? <PlanStrip plan={response.plan} /> : null}
 
