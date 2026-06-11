@@ -124,3 +124,38 @@ frontend to **64 tests**. Both at 100% coverage.
 
 ### Config additions
 - Profiles & validation via `core/profiles.py`; route enrichment uses `GOOGLE_MAPS_API_KEY`.
+
+---
+
+## v1.3.0 — 2026-06-01
+
+Production hardening expansion. Backend grew to **88 modules / ~5,440 lines / 313 tests**;
+frontend to **90 tests**. Both at 100% coverage.
+
+### New backend capabilities
+- **Distributed tracing** — OpenTelemetry-style nested spans with context propagation and
+  an inspectable exporter; spans across plan → retrieve → ground.
+- **Event bus** — async pub/sub with typed domain events (search performed, zero-result,
+  route requested) and isolated handler failures.
+- **Feature flags** — runtime flags with stable percentage-rollout bucketing and
+  allow/deny targeting.
+- **Input hardening** — sanitisation beyond schema validation: unicode normalisation,
+  control-char stripping, injection-marker neutralisation, length/token caps, abuse flags.
+- **Pagination** — tamper-evident cursors and a generic paginator (ES search_after-ready).
+- **Batch API** — multi-query submission.
+- **Optimistic concurrency** — versioned repository with version-checked updates, plus
+  owner-scoped saved searches built on it.
+- **Admin/ops surface** — cache flush, reindex, status, and flag inspection.
+
+### New frontend capabilities
+- **Pagination** — load-more with total/end-of-results states.
+- **SavedSearches** — save the current query, re-run, and delete.
+
+### API additions
+- `/ready`, `/analytics`, `/routes`, `/search/batch`, `/saved-searches` (CRUD),
+  `/flags`, `/traces`, `/admin/status`, `/admin/cache/flush`, `/admin/reindex`.
+- `/search` now supports cursor pagination (`cursor` in, `next_cursor`/`total` out).
+
+### Fixes
+- Normalizer now reads nested `location` objects from feeds.
+- Pagination fetches a larger candidate window so pages are stable.

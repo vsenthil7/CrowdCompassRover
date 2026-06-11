@@ -1,14 +1,15 @@
 """Provider factory — assembles the full agent stack from settings.
 
-The single composition root. ``APP_MODE`` decides mock vs real for search, LLM, and route
-enrichment; configuration flags toggle ranking enhancements; resilience, sessions,
-analytics, route provider, and dependency health checks are wired here so no other module
-needs to know how they fit together.
+The single composition root. ``APP_MODE`` decides mock vs real integrations; config flags
+toggle ranking; resilience, sessions, analytics, routes, tracing, the event bus, feature
+flags, persistence (events + saved searches), ingestion, health checks, and the admin
+surface are all wired here so no other module needs to know how they compose.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 
+from app.admin.service import AdminService
 from app.agent.answerer import Answerer, MockAnswerer
 from app.agent.gemini_client import GeminiClient
 from app.agent.gemini_planner import GeminiAnswerer, GeminiPlanner
@@ -21,11 +22,17 @@ from app.data.fixtures import load_fixture_events
 from app.enrichment.google_routes import GoogleRouteProvider
 from app.enrichment.mock_routes import MockRouteProvider
 from app.enrichment.routes import RouteProvider
+from app.events.bus import DomainEvent, EventBus, ZeroResult
+from app.flags.feature_flags import FeatureFlag, FeatureFlags
 from app.health.checks import ComponentHealth, HealthRegistry, HealthState
+from app.ingestion.pipeline import FreshnessTracker, IngestionPipeline
+from app.ingestion.sources import StaticFeedSource
 from app.mcp.elastic_client import ElasticMCPClient
+from app.models.domain import VenueCategory
 from app.observability.metrics import get_metrics
 from app.persistence.memory import InMemoryEventRepository
 from app.persistence.repository import EventRepository
+from app.persistence.saved_search import SavedSearchService
 from app.ranking.reranker import RerankWeights
 from app.ranking.spell import SpellCorrector
 from app.resilience.cache import TTLCache
@@ -36,6 +43,7 @@ from app.services.mock_search import MockSearchProvider
 from app.services.resilient_search import ResilientSearchProvider
 from app.services.search_pipeline import SearchPipeline
 from app.services.search_provider import SearchProvider
+from app.tracing.tracer import Tracer
 
 
 @dataclass
@@ -47,6 +55,11 @@ class Components:
     analytics: AnalyticsRecorder
     events: EventRepository
     health: HealthRegistry
+    tracer: Tracer
+    event_bus: EventBus
+    flags: FeatureFlags
+    saved_searches: SavedSearchService
+    admin: AdminService
     closables: list[object]
 
 
@@ -60,11 +73,18 @@ def build_base_search_provider(settings: Settings) -> tuple[SearchProvider, list
     return MockSearchProvider(), closables
 
 
-def wrap_resilient(provider: SearchProvider, settings: Settings) -> ResilientSearchProvider:
+def build_cache(settings: Settings) -> TTLCache:
+    """Build the shared search cache."""
+    return TTLCache(maxsize=settings.cache_maxsize, ttl=settings.cache_ttl)
+
+
+def wrap_resilient(
+    provider: SearchProvider, settings: Settings, cache: TTLCache
+) -> ResilientSearchProvider:
     """Wrap a provider with cache + retry + circuit breaker + metrics."""
     return ResilientSearchProvider(
         provider,
-        cache=TTLCache(maxsize=settings.cache_maxsize, ttl=settings.cache_ttl),
+        cache=cache,
         breaker=CircuitBreaker(
             "search",
             fail_max=settings.circuit_fail_max,
@@ -109,6 +129,32 @@ def build_route_provider(settings: Settings) -> tuple[RouteProvider, list[object
     return MockRouteProvider(), []
 
 
+def build_feature_flags(settings: Settings) -> FeatureFlags:
+    """Build the feature-flag registry from config toggles."""
+    return FeatureFlags(
+        [
+            FeatureFlag("reranking", enabled=settings.enable_reranking, rollout_percent=100.0),
+            FeatureFlag("query_expansion", enabled=settings.enable_query_expansion, rollout_percent=100.0),
+            FeatureFlag("spell_correction", enabled=settings.enable_spell_correction, rollout_percent=100.0),
+            FeatureFlag("route_enrichment", enabled=True, rollout_percent=100.0),
+            FeatureFlag("saved_searches", enabled=True, rollout_percent=100.0),
+        ]
+    )
+
+
+def build_ingestion(settings: Settings) -> tuple[IngestionPipeline, FreshnessTracker]:
+    """Build an ingestion pipeline seeded from fixtures (one static source per category)."""
+    events = load_fixture_events()
+    by_cat: dict[VenueCategory, list[dict]] = {}
+    for ev in events:
+        by_cat.setdefault(ev.category, []).append(ev.model_dump())
+    sources = [
+        StaticFeedSource(f"feed-{cat.value}", cat, records)
+        for cat, records in by_cat.items()
+    ]
+    return IngestionPipeline(sources), FreshnessTracker(stale_after=settings.ingest_stale_after)
+
+
 def build_health_registry(
     settings: Settings, search: SearchProvider, events: EventRepository
 ) -> HealthRegistry:
@@ -128,18 +174,43 @@ def build_health_registry(
     return registry
 
 
+def wire_event_handlers(bus: EventBus, analytics: AnalyticsRecorder) -> None:
+    """Subscribe default handlers to domain events."""
+    async def on_zero_result(event: DomainEvent) -> None:
+        # Zero-result queries are a content-gap signal; surface via metrics.
+        if isinstance(event, ZeroResult):
+            get_metrics().inc("zero_result_total", language=event.language)
+
+    bus.subscribe("search.zero_result", on_zero_result)
+
+
 def build_components(settings: Settings) -> Components:
     """Assemble the full agent for the active mode."""
     base, c1 = build_base_search_provider(settings)
-    resilient = wrap_resilient(base, settings)
+    cache = build_cache(settings)
+    resilient = wrap_resilient(base, settings, cache)
     pipeline = build_pipeline(resilient, settings)
     planner, answerer, c2 = build_planner_and_answerer(settings)
     routes, c3 = build_route_provider(settings)
 
     sessions = SessionStore(ttl=settings.session_ttl)
     analytics = AnalyticsRecorder()
-    events = InMemoryEventRepository(load_fixture_events())
-    health = build_health_registry(settings, resilient, events)
+    events_repo = InMemoryEventRepository(load_fixture_events())
+    health = build_health_registry(settings, resilient, events_repo)
+    tracer = Tracer()
+    bus = EventBus()
+    wire_event_handlers(bus, analytics)
+    flags = build_feature_flags(settings)
+    saved = SavedSearchService()
+    ingestion, freshness = build_ingestion(settings)
+    freshness.mark()
+    admin = AdminService(
+        cache=cache,
+        events=events_repo,
+        pipeline=ingestion,
+        freshness=freshness,
+        flags=flags,
+    )
 
     agent = RoverAgent(
         planner=planner,
@@ -148,12 +219,19 @@ def build_components(settings: Settings) -> Components:
         sessions=sessions,
         analytics=analytics,
         routes=routes,
+        tracer=tracer,
+        events=bus,
     )
     return Components(
         agent=agent,
         sessions=sessions,
         analytics=analytics,
-        events=events,
+        events=events_repo,
         health=health,
+        tracer=tracer,
+        event_bus=bus,
+        flags=flags,
+        saved_searches=saved,
+        admin=admin,
         closables=[*c1, *c2, *c3],
     )

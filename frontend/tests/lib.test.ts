@@ -101,4 +101,38 @@ describe("api client", () => {
     const [, init] = fetchMock.mock.calls[0];
     expect(JSON.parse(init.body).modes).toEqual(["walk"]);
   });
+
+  it("search passes cursor when provided", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ plan: {}, results: [], next_cursor: null, total: 0 }),
+    });
+    await api.search("q", null, 5, "sess", "cur123");
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse(init.body).cursor).toBe("cur123");
+  });
+
+  it("saveSearch posts owner/query/label", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: "s1", owner: "o", query: "q", label: "l", tags: [] }),
+    });
+    const res = await api.saveSearch("o", "q", "l");
+    expect(res.id).toBe("s1");
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse(init.body).owner).toBe("o");
+  });
+
+  it("deleteSavedSearch calls DELETE", async () => {
+    fetchMock.mockResolvedValue({ ok: true });
+    await api.deleteSavedSearch("o", "s1");
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toContain("/saved-searches/o/s1");
+    expect(init.method).toBe("DELETE");
+  });
+
+  it("deleteSavedSearch throws on failure", async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 404 });
+    await expect(api.deleteSavedSearch("o", "s1")).rejects.toBeInstanceOf(ApiError);
+  });
 });

@@ -44,6 +44,13 @@ def test_normalise_with_aliases():
     assert ev.city == "LA"
 
 
+def test_normalise_nested_location():
+    rec = {"name": "Nested", "city": "NYC", "location": {"lat": 40.0, "lon": -74.0}}
+    ev = normalise_record(rec, VenueCategory.STADIUM)
+    assert ev is not None
+    assert ev.location.lat == 40.0
+
+
 def test_normalise_missing_required_returns_none():
     assert normalise_record({"name": "x"}, VenueCategory.STADIUM) is None
 

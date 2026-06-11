@@ -121,6 +121,85 @@ async def test_metrics_endpoint_present(client):
     assert "http_requests_total" in r.text
 
 
+async def test_search_pagination(client):
+    from app.pagination.cursor import encode_cursor
+
+    r = await client.post(
+        "/api/search",
+        json={"query": "open", "top_k": 3, "cursor": encode_cursor(0)},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["total"] is not None
+    assert len(body["results"]) <= 3
+
+
+async def test_batch_search_endpoint(client):
+    r = await client.post(
+        "/api/search/batch",
+        json={"queries": ["stadium", "transit"], "top_k": 3},
+    )
+    assert r.status_code == 200
+    assert len(r.json()["responses"]) == 2
+
+
+async def test_saved_search_crud(client):
+    create = await client.post(
+        "/api/saved-searches",
+        json={"owner": "owner1", "query": "halal food", "label": "My spots"},
+    )
+    assert create.status_code == 200
+    sid = create.json()["id"]
+    got = await client.get(f"/api/saved-searches/owner1/{sid}")
+    assert got.status_code == 200
+    assert got.json()["query"] == "halal food"
+    deleted = await client.delete(f"/api/saved-searches/owner1/{sid}")
+    assert deleted.status_code == 200
+
+
+async def test_saved_search_not_found(client):
+    r = await client.get("/api/saved-searches/owner1/missing")
+    assert r.status_code == 404
+    assert r.headers["content-type"].startswith("application/problem+json")
+
+
+async def test_saved_search_delete_missing(client):
+    r = await client.delete("/api/saved-searches/owner1/missing")
+    assert r.status_code == 404
+
+
+async def test_flags_endpoint(client):
+    r = await client.get("/api/flags")
+    assert r.status_code == 200
+    assert "route_enrichment" in r.json()["flags"]
+
+
+async def test_traces_endpoint(client):
+    await client.post("/api/search", json={"query": "halal food"})
+    r = await client.get("/api/traces")
+    assert r.status_code == 200
+    spans = r.json()["spans"]
+    assert any(s["name"] == "search" for s in spans)
+
+
+async def test_admin_status_endpoint(client):
+    r = await client.get("/api/admin/status")
+    assert r.status_code == 200
+    assert "events" in r.json()
+
+
+async def test_admin_flush_cache_endpoint(client):
+    r = await client.post("/api/admin/cache/flush")
+    assert r.status_code == 200
+    assert r.json()["flushed"] is True
+
+
+async def test_admin_reindex_endpoint(client):
+    r = await client.post("/api/admin/reindex")
+    assert r.status_code == 200
+    assert r.json()["indexed"] >= 1
+
+
 async def test_get_agent_lazy_init():
     # When components not initialized, get_agent should build them on demand.
     deps._components = None
@@ -146,13 +225,34 @@ async def test_shutdown_closes_closables():
     from app.analytics.recorder import AnalyticsRecorder
     from app.health.checks import HealthRegistry
     from app.persistence.memory import InMemoryEventRepository
+    from app.tracing.tracer import Tracer
+    from app.events.bus import EventBus
+    from app.flags.feature_flags import FeatureFlags
+    from app.persistence.saved_search import SavedSearchService
+    from app.admin.service import AdminService
+    from app.ingestion.pipeline import FreshnessTracker, IngestionPipeline
+    from app.resilience.cache import TTLCache
 
+    repo = InMemoryEventRepository()
+    flags = FeatureFlags()
+    admin = AdminService(
+        cache=TTLCache(),
+        events=repo,
+        pipeline=IngestionPipeline([]),
+        freshness=FreshnessTracker(),
+        flags=flags,
+    )
     deps._components = Components(
         agent=object(),
         sessions=SessionStore(),
         analytics=AnalyticsRecorder(),
-        events=InMemoryEventRepository(),
+        events=repo,
         health=HealthRegistry(),
+        tracer=Tracer(),
+        event_bus=EventBus(),
+        flags=flags,
+        saved_searches=SavedSearchService(),
+        admin=admin,
         closables=[_C(), object()],
     )
     await deps.shutdown_components()

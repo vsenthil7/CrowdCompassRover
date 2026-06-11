@@ -17,20 +17,23 @@ Agent Builder / Gemini** (multilingual reasoning).
 
 - **One agent, three stages:** plan → hybrid search → grounded answer, plus route
   enrichment for the "cheapest route to the stadium now" use case.
-- **Production concerns built in:** structured logging + Prometheus metrics, retry /
-  circuit-breaker / caching resilience, rate limiting + API-key auth, RFC-7807 errors,
-  an ingestion pipeline with freshness tracking, multi-turn conversation sessions,
-  query analytics, dependency health/readiness probes, a job scheduler, a persistence
-  repository layer, i18n, and per-environment config validation.
+- **Production concerns built in:** structured logging + Prometheus metrics, distributed
+  tracing, an async event bus, runtime feature flags, retry / circuit-breaker / caching
+  resilience, rate limiting + API-key auth + input sanitisation, RFC-7807 errors, an
+  ingestion pipeline with freshness tracking, multi-turn sessions, query analytics,
+  dependency health/readiness probes, a job scheduler, a persistence repository layer with
+  optimistic concurrency, saved searches, pagination, a batch API, an admin/ops surface,
+  i18n, and per-environment config validation.
 - **Ranking depth:** synonym query expansion, spell tolerance, and business-signal
   reranking (open-now / proximity / capacity) on top of hybrid keyword+vector+geo search.
 - **Real + mock parity:** every integration (Elastic MCP, Gemini, Google Routes) has real
   code behind a provider interface, switched by `APP_MODE` + credentials — no code change.
 - **Multilingual:** English, Spanish, French, Portuguese, German, Arabic answer support.
-- **Quality bar:** backend **100%** coverage (248 tests), frontend **100%** coverage
-  (64 tests), Playwright E2E journeys, strict TypeScript.
+- **Quality bar:** backend **100%** coverage (313 tests), frontend **100%** coverage
+  (90 tests), Playwright E2E journeys, strict TypeScript.
 - **Distinctive UI:** a "matchday departure-board" React interface with engine-feature
-  panel, conversation history, route options, and an error boundary.
+  panel, conversation history, route options, saved searches, pagination, and an error
+  boundary.
 
 ---
 
@@ -98,8 +101,13 @@ crowdcompass-rover/
 │   │   │                  resilient wrapper, search pipeline
 │   │   ├── ranking/       query expansion, spell tolerance, business reranker
 │   │   ├── enrichment/    route models, mock + Google Routes providers
-│   │   ├── persistence/   repository ports + in-memory adapters
+│   │   ├── persistence/   repository ports, in-memory + versioned adapters, saved searches
 │   │   ├── analytics/     query event recorder + aggregation
+│   │   ├── tracing/       OpenTelemetry-style spans + exporter
+│   │   ├── events/        async event bus + typed domain events
+│   │   ├── flags/         runtime feature flags (rollout % + targeting)
+│   │   ├── pagination/    cursor encoding + paginator
+│   │   ├── admin/         ops surface (cache flush, reindex, status)
 │   │   ├── health/        dependency health checks (liveness/readiness)
 │   │   ├── scheduling/    async interval scheduler
 │   │   ├── i18n/          translation catalog + translator
@@ -107,18 +115,18 @@ crowdcompass-rover/
 │   │   ├── conversation/  session store + multi-turn context
 │   │   ├── resilience/    retry, circuit breaker, TTL+LRU cache
 │   │   ├── observability/ JSON logging, metrics, request middleware
-│   │   ├── security/      rate limiting, API-key auth, middleware
+│   │   ├── security/      rate limiting, API-key auth, sanitisation, middleware
 │   │   ├── errors/        typed exceptions + problem+json handlers
 │   │   ├── mcp/           Elastic MCP client + local mock MCP server
 │   │   ├── core/          config, profiles, embedding, geo, provider factory
 │   │   ├── models/        domain models
 │   │   ├── data/          fixtures + seed
 │   │   └── api/           routes + DI
-│   └── tests/          248 tests @ 100% coverage
+│   └── tests/          313 tests @ 100% coverage
 ├── frontend/           Vite + React + TS UI
-│   ├── src/            components (Result/Plan/Answer/Feature/History/Route panels,
-│   │                   ErrorBoundary), hooks, lib, styles
-│   └── tests/          64 tests @ 100% coverage
+│   ├── src/            components (Result/Plan/Answer/Feature/History/Route/Saved panels,
+│   │                   Pagination, ErrorBoundary), hooks, lib, styles
+│   └── tests/          90 tests @ 100% coverage
 ├── e2e/                Playwright journeys + dual web-server config
 ├── docs/               architecture, API, user guide (+ screenshots), tracker
 ├── scripts/            screenshot snapshot generator

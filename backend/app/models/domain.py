@@ -103,6 +103,7 @@ class SearchRequest(BaseModel):
     user_location: GeoPoint | None = None
     top_k: int = Field(default=5, ge=1, le=50)
     session_id: str | None = Field(default=None, max_length=128)
+    cursor: str | None = Field(default=None, max_length=256)
 
 
 class SearchResponse(BaseModel):
@@ -110,6 +111,16 @@ class SearchResponse(BaseModel):
 
     plan: QueryPlan
     results: list[ScoredEvent]
+    next_cursor: str | None = None
+    total: int | None = None
+
+
+class BatchSearchRequest(BaseModel):
+    """Submit several queries in one call."""
+
+    queries: list[str] = Field(min_length=1, max_length=20)
+    user_location: GeoPoint | None = None
+    top_k: int = Field(default=5, ge=1, le=50)
 
 
 class ChatRequest(BaseModel):
@@ -142,3 +153,12 @@ class RouteRequest(BaseModel):
     origin: GeoPoint
     destination: GeoPoint
     modes: list[str] | None = Field(default=None)
+
+
+class SavedSearchRequest(BaseModel):
+    """Create a saved search."""
+
+    owner: str = Field(min_length=1, max_length=128)
+    query: str = Field(min_length=1, max_length=2000)
+    label: str = Field(min_length=1, max_length=200)
+    tags: list[str] = Field(default_factory=list)

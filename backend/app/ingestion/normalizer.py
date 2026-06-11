@@ -47,6 +47,11 @@ def normalise_record(record: dict, category: VenueCategory) -> CityEvent | None:
     city = _first(record, _CITY_KEYS)
     lat = _first(record, _LAT_KEYS)
     lon = _first(record, _LON_KEYS)
+    # Support a nested {"location": {"lat":..., "lon":...}} shape.
+    location_obj = record.get("location")
+    if (lat is None or lon is None) and isinstance(location_obj, dict):
+        lat = location_obj.get("lat", lat)
+        lon = location_obj.get("lon", lon)
     if name is None or city is None or lat is None or lon is None:
         return None
     try:

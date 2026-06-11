@@ -55,3 +55,23 @@ def get_analytics() -> AnalyticsRecorder:
 def get_health_registry() -> HealthRegistry:
     """Return the health registry (FastAPI dependency)."""
     return _get_components().health
+
+
+def get_tracer():
+    """Return the tracer (FastAPI dependency)."""
+    return _get_components().tracer
+
+
+def get_flags():
+    """Return the feature-flag registry (FastAPI dependency)."""
+    return _get_components().flags
+
+
+def get_saved_searches():
+    """Return the saved-search service (FastAPI dependency)."""
+    return _get_components().saved_searches
+
+
+def get_admin():
+    """Return the admin service (FastAPI dependency)."""
+    return _get_components().admin

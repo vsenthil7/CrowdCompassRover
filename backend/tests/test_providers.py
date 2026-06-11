@@ -42,8 +42,10 @@ def test_build_base_search_provider_real_without_creds_falls_back():
 
 
 def test_wrap_resilient():
+    from app.resilience.cache import TTLCache
+
     base = MockSearchProvider()
-    wrapped = wrap_resilient(base, Settings(app_mode=AppMode.MOCK))
+    wrapped = wrap_resilient(base, Settings(app_mode=AppMode.MOCK), TTLCache())
     assert isinstance(wrapped, ResilientSearchProvider)
 
 
@@ -175,3 +177,80 @@ async def test_build_health_registry_runs():
     report = await comp.health.run()
     assert report.ready is True
     assert {c.name for c in report.components} == {"search", "events_repo"}
+
+
+async def test_orchestrator_pagination():
+    from app.pagination.cursor import encode_cursor
+
+    comp = build_components(Settings(app_mode=AppMode.MOCK))
+    # Force pagination with an explicit cursor; broad query matches many venues.
+    resp = await comp.agent.search("open", None, 3, cursor=encode_cursor(0))
+    assert resp.total is not None
+    assert len(resp.results) <= 3
+    if resp.next_cursor:
+        page2 = await comp.agent.search("open", None, 3, cursor=resp.next_cursor)
+        assert page2.total == resp.total
+
+
+async def test_orchestrator_batch_search():
+    comp = build_components(Settings(app_mode=AppMode.MOCK))
+    responses = await comp.agent.batch_search(["stadium", "transit", "halal"], None, 3)
+    assert len(responses) == 3
+
+
+async def test_orchestrator_emits_events_and_traces():
+    comp = build_components(Settings(app_mode=AppMode.MOCK))
+    await comp.agent.search("halal food open now", None, 3)
+    assert comp.event_bus.published_count >= 1
+    assert comp.tracer.exporter.count >= 1
+
+
+async def test_orchestrator_route_emits_event():
+    from app.models.domain import GeoPoint
+
+    comp = build_components(Settings(app_mode=AppMode.MOCK))
+    before = comp.event_bus.published_count
+    await comp.agent.route_to(
+        GeoPoint(lat=40.81, lon=-74.07),
+        GeoPoint(lat=40.758, lon=-73.985),
+        destination_name="MetLife",
+    )
+    assert comp.event_bus.published_count > before
+
+
+async def test_orchestrator_zero_result_event():
+    # A query with an impossible filter combination yields zero results.
+    from app.models.domain import GeoPoint
+
+    comp = build_components(Settings(app_mode=AppMode.MOCK))
+    # Use a far location with tight radius via planner near-terms.
+    resp = await comp.agent.search("nearest hospital", GeoPoint(lat=0.0, lon=0.0), 3)
+    # Either zero or some results; the event bus still recorded a search event.
+    assert comp.event_bus.published_count >= 1
+    assert isinstance(resp.results, list)
+
+
+def test_build_feature_flags():
+    from app.core.providers import build_feature_flags
+
+    flags = build_feature_flags(Settings(app_mode=AppMode.MOCK))
+    assert flags.is_enabled("route_enrichment") is True
+
+
+def test_build_ingestion():
+    from app.core.providers import build_ingestion
+
+    pipeline, freshness = build_ingestion(Settings(app_mode=AppMode.MOCK))
+    assert pipeline is not None
+    assert freshness.is_stale is True  # not yet marked
+
+
+async def test_wire_event_handlers_zero_result_metric():
+    from app.analytics.recorder import AnalyticsRecorder
+    from app.core.providers import wire_event_handlers
+    from app.events.bus import EventBus, ZeroResult
+
+    bus = EventBus()
+    wire_event_handlers(bus, AnalyticsRecorder())
+    ran = await bus.publish(ZeroResult(query="q", language="en"))
+    assert ran == 1

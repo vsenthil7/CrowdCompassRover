@@ -7,6 +7,8 @@ import { FeaturePanel } from "./components/FeaturePanel";
 import { HistoryPanel } from "./components/HistoryPanel";
 import { RoutePanel } from "./components/RoutePanel";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { Pagination } from "./components/Pagination";
+import { SavedSearches } from "./components/SavedSearches";
 import "./styles/app.css";
 
 const EXAMPLES = [
@@ -17,8 +19,9 @@ const EXAMPLES = [
 ];
 
 export function App() {
-  const { state, setQuery, setUseLocation, run, routeTo, clearRoute } = useRover();
-  const { response, answer, loading, error, health, history, routeView } = state;
+  const { state, setQuery, setUseLocation, run, loadMore, routeTo, clearRoute, saveCurrent, removeSaved } =
+    useRover();
+  const { response, results, answer, loading, error, health, history, routeView, saved } = state;
 
   return (
     <ErrorBoundary>
@@ -68,15 +71,24 @@ export function App() {
 
         {response ? <PlanStrip plan={response.plan} /> : null}
 
-        {response && response.results.length > 0 ? (
-          <div className="board">
-            {response.results.map((hit, i) => (
-              <ResultRow key={hit.event.id} hit={hit} index={i} onRoute={routeTo} />
-            ))}
-          </div>
+        {response && results.length > 0 ? (
+          <>
+            <div className="board">
+              {results.map((hit, i) => (
+                <ResultRow key={`${hit.event.id}-${i}`} hit={hit} index={i} onRoute={routeTo} />
+              ))}
+            </div>
+            <Pagination
+              total={response.total}
+              shown={results.length}
+              hasMore={Boolean(response.next_cursor)}
+              loading={state.pageLoading}
+              onNext={loadMore}
+            />
+          </>
         ) : null}
 
-        {response && response.results.length === 0 && !loading ? (
+        {response && results.length === 0 && !loading ? (
           <div className="empty" data-testid="empty">
             No matching places found. Try another phrasing or language.
           </div>
@@ -87,6 +99,15 @@ export function App() {
             Ask for stadiums, food, transit, currency exchange or fan zones — in any language.
           </div>
         ) : null}
+
+        <SavedSearches
+          saved={saved}
+          currentQuery={state.query}
+          onSave={saveCurrent}
+          onRun={(q) => run(q)}
+          onDelete={removeSaved}
+          saving={state.saving}
+        />
 
         <HistoryPanel history={history} onReplay={(q) => run(q)} />
       </div>

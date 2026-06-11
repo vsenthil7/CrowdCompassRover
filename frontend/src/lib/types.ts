@@ -57,6 +57,16 @@ export interface QueryPlan {
 export interface SearchResponse {
   plan: QueryPlan;
   results: ScoredEvent[];
+  next_cursor: string | null;
+  total: number | null;
+}
+
+export interface SavedSearch {
+  id: string;
+  owner: string;
+  query: string;
+  label: string;
+  tags: string[];
 }
 
 export interface Citation {

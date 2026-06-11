@@ -3,6 +3,7 @@ import type {
   GeoPoint,
   HealthStatus,
   RouteResponse,
+  SavedSearch,
   SearchResponse,
 } from "./types";
 
@@ -34,13 +35,30 @@ export async function search(
   userLocation: GeoPoint | null,
   topK: number,
   sessionId: string | null = null,
+  cursor: string | null = null,
 ): Promise<SearchResponse> {
   return postJson<SearchResponse>("/search", {
     query,
     user_location: userLocation,
     top_k: topK,
     session_id: sessionId,
+    cursor,
   });
+}
+
+export async function saveSearch(
+  owner: string,
+  query: string,
+  label: string,
+): Promise<SavedSearch> {
+  return postJson<SavedSearch>("/saved-searches", { owner, query, label, tags: [] });
+}
+
+export async function deleteSavedSearch(owner: string, id: string): Promise<void> {
+  const res = await fetch(`${BASE}/saved-searches/${owner}/${id}`, { method: "DELETE" });
+  if (!res.ok) {
+    throw new ApiError(res.status, "delete failed");
+  }
 }
 
 export async function chat(

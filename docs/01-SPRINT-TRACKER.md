@@ -53,6 +53,16 @@ next begins.
 | S31 | Composition + API | Orchestrator analytics/routing, /ready /analytics /routes endpoints | ✅ |
 | S32 | Frontend width II | RoutePanel, ErrorBoundary, route button, routing hook | ✅ |
 | S33 | Backend+frontend tests | Tests for all new modules, restore 100% on both | ✅ |
+| S34 | Tracing | OpenTelemetry-style nested spans + exporter | ✅ |
+| S35 | Event bus | Async pub/sub with typed domain events | ✅ |
+| S36 | Feature flags | Runtime flags with rollout % + targeting | ✅ |
+| S37 | Input hardening | Sanitisation, injection neutralisation, abuse guards | ✅ |
+| S38 | Pagination | Tamper-evident cursor + generic paginator | ✅ |
+| S39 | Batch API | Multi-query submission | ✅ |
+| S40 | Concurrency + saved | Versioned repo (optimistic locking) + saved searches | ✅ |
+| S41 | Admin/ops surface | Cache flush, reindex, status, flag inspect | ✅ |
+| S42 | Composition + API | Orchestrator tracing/events/pagination/sanitise, 11 new endpoints | ✅ |
+| S43 | Frontend width III | Pagination, SavedSearches; tests to 100% on both | ✅ |
 
 ---
 
@@ -218,11 +228,59 @@ the new API endpoints; frontend tests for routing, error boundary, and helpers.
 
 ---
 
+## Production Hardening Expansion (v1.3.0)
+
+### S34 — Tracing ✅
+`tracing/`: OpenTelemetry-style `Tracer`/`Span` with context-var propagation, nested
+parent/child spans, error status capture, and a bounded `SpanExporter`. Spans recorded
+across plan → retrieve → ground.
+
+### S35 — Event bus ✅
+`events/`: async `EventBus` with typed `DomainEvent`s (`SearchPerformed`, `ZeroResult`,
+`RouteRequested`); handler failures isolated; default zero-result → metrics handler wired.
+
+### S36 — Feature flags ✅
+`flags/`: `FeatureFlag`/`FeatureFlags` with stable percentage-rollout bucketing (hash of
+flag+subject) and allow/deny targeting; runtime `refresh`.
+
+### S37 — Input hardening ✅
+`security/sanitize.py`: NFKC normalisation, control-char stripping, whitespace collapse,
+injection-marker neutralisation, length/token caps, and repetition abuse flagging.
+
+### S38 — Pagination ✅
+`pagination/`: tamper-evident base64 cursor (offset + checksum) and a generic `paginate`
+over any sequence; maps onto ES `search_after` in real mode.
+
+### S39 — Batch API ✅
+Orchestrator `batch_search` + `/search/batch` endpoint for multi-query submission.
+
+### S40 — Concurrency + saved searches ✅
+`persistence/versioned.py`: versioned repository with optimistic-locking
+`ConcurrencyError`. `persistence/saved_search.py`: owner-scoped saved searches over it.
+
+### S41 — Admin/ops surface ✅
+`admin/`: `AdminService` for cache flush, reindex (re-run ingestion → event repo),
+status summary, and flag inspection.
+
+### S42 — Composition + API ✅
+Orchestrator now traces every stage, sanitises input, publishes domain events, and
+paginates; factory wires tracer, bus, flags, saved searches, ingestion, admin. Added
+`/ready` `/analytics` `/routes` `/search/batch` `/saved-searches` (CRUD) `/flags`
+`/traces` `/admin/*` endpoints. Fixed normalizer nested-location handling and pagination
+candidate windowing.
+
+### S43 — Frontend width III ✅
+`Pagination` (load-more with total/end states) and `SavedSearches` (save/run/delete);
+`useRover` extended with pagination accumulation and saved-search CRUD. **Backend 313
+tests / Frontend 90 tests, both 100%.** Strict TS build green.
+
+---
+
 ## Coverage Ledger
 | Layer | Tool | Target | Latest |
 |-------|------|-------:|-------:|
-| Backend | pytest-cov | 100% | ✅ 100.00% (248 tests, 1958 stmts) |
-| Frontend | vitest --coverage | 100% | ✅ 100.00% (64 tests) |
+| Backend | pytest-cov | 100% | ✅ 100.00% (313 tests, 2479 stmts) |
+| Frontend | vitest --coverage | 100% | ✅ 100.00% (90 tests) |
 | E2E flows | Playwright | 100% of journeys | ✅ 8 journeys (browser run pending CDN access; flows validated via live API) |
 
 ## Access Ledger (live)

@@ -40,6 +40,8 @@ const searchRes: SearchResponse = {
       },
     },
   ],
+  next_cursor: null,
+  total: 1,
 };
 
 const chatRes: ChatAnswer = {
@@ -164,6 +166,139 @@ describe("useRover hook", () => {
     });
     expect(result.current.state.error).toBe("Unknown error");
   });
+
+  it("loadMore appends results and advances cursor", async () => {
+    mockedApi.search.mockResolvedValueOnce({ ...searchRes, next_cursor: "c1", total: 2 });
+    const { result } = renderHook(() => useRover());
+    await act(async () => {
+      await result.current.run("food");
+    });
+    expect(result.current.state.results).toHaveLength(1);
+    mockedApi.search.mockResolvedValueOnce({
+      ...searchRes,
+      results: [{ ...searchRes.results[0], event: { ...searchRes.results[0].event, id: "e2" } }],
+      next_cursor: null,
+      total: 2,
+    });
+    await act(async () => {
+      await result.current.loadMore();
+    });
+    expect(result.current.state.results).toHaveLength(2);
+    expect(result.current.state.response?.next_cursor).toBeNull();
+  });
+
+  it("loadMore is a no-op without a cursor", async () => {
+    const { result } = renderHook(() => useRover());
+    await act(async () => {
+      await result.current.run("food");
+    });
+    const callsBefore = mockedApi.search.mock.calls.length;
+    await act(async () => {
+      await result.current.loadMore();
+    });
+    expect(mockedApi.search.mock.calls.length).toBe(callsBefore);
+  });
+
+  it("loadMore captures errors", async () => {
+    mockedApi.search.mockResolvedValueOnce({ ...searchRes, next_cursor: "c1", total: 2 });
+    const { result } = renderHook(() => useRover());
+    await act(async () => {
+      await result.current.run("food");
+    });
+    mockedApi.search.mockRejectedValueOnce(new Error("page fail"));
+    await act(async () => {
+      await result.current.loadMore();
+    });
+    expect(result.current.state.error).toBe("page fail");
+  });
+
+  it("loadMore handles non-Error rejection and uses location", async () => {
+    mockedApi.search.mockResolvedValueOnce({ ...searchRes, next_cursor: "c1", total: 2 });
+    const { result } = renderHook(() => useRover());
+    act(() => result.current.setUseLocation(true));
+    await act(async () => {
+      await result.current.run("food");
+    });
+    mockedApi.search.mockRejectedValueOnce("weird");
+    await act(async () => {
+      await result.current.loadMore();
+    });
+    expect(result.current.state.error).toBe("Unknown error");
+    // location was forwarded on the paginated call
+    const calls = mockedApi.search.mock.calls;
+    const lastCall = calls[calls.length - 1];
+    expect(lastCall?.[1]).toEqual(DEFAULT_LOCATION);
+  });
+
+  it("saveCurrent adds a saved search", async () => {
+    mockedApi.saveSearch.mockResolvedValue({ id: "s1", owner: "o", query: "food", label: "food", tags: [] });
+    const { result } = renderHook(() => useRover());
+    act(() => result.current.setQuery("food"));
+    await act(async () => {
+      await result.current.saveCurrent();
+    });
+    expect(result.current.state.saved).toHaveLength(1);
+  });
+
+  it("saveCurrent is a no-op with empty query", async () => {
+    const { result } = renderHook(() => useRover());
+    await act(async () => {
+      await result.current.saveCurrent();
+    });
+    expect(mockedApi.saveSearch).not.toHaveBeenCalled();
+  });
+
+  it("saveCurrent captures errors", async () => {
+    mockedApi.saveSearch.mockRejectedValue(new Error("save fail"));
+    const { result } = renderHook(() => useRover());
+    act(() => result.current.setQuery("food"));
+    await act(async () => {
+      await result.current.saveCurrent();
+    });
+    expect(result.current.state.error).toBe("save fail");
+  });
+
+  it("saveCurrent handles non-Error rejection", async () => {
+    mockedApi.saveSearch.mockRejectedValue("weird");
+    const { result } = renderHook(() => useRover());
+    act(() => result.current.setQuery("food"));
+    await act(async () => {
+      await result.current.saveCurrent();
+    });
+    expect(result.current.state.error).toBe("Unknown error");
+  });
+
+  it("removeSaved deletes a saved search", async () => {
+    mockedApi.saveSearch.mockResolvedValue({ id: "s1", owner: "o", query: "food", label: "food", tags: [] });
+    mockedApi.deleteSavedSearch.mockResolvedValue(undefined);
+    const { result } = renderHook(() => useRover());
+    act(() => result.current.setQuery("food"));
+    await act(async () => {
+      await result.current.saveCurrent();
+    });
+    await act(async () => {
+      await result.current.removeSaved("s1");
+    });
+    expect(result.current.state.saved).toHaveLength(0);
+  });
+
+  it("removeSaved captures errors", async () => {
+    mockedApi.deleteSavedSearch.mockRejectedValue(new Error("del fail"));
+    const { result } = renderHook(() => useRover());
+    await act(async () => {
+      await result.current.removeSaved("missing");
+    });
+    expect(result.current.state.error).toBe("del fail");
+  });
+
+  it("removeSaved handles non-Error rejection", async () => {
+    mockedApi.deleteSavedSearch.mockRejectedValue("weird");
+    const { result } = renderHook(() => useRover());
+    await act(async () => {
+      await result.current.removeSaved("missing");
+    });
+    expect(result.current.state.error).toBe("Unknown error");
+  });
 });
 
 describe("App", () => {
@@ -212,6 +347,37 @@ describe("App", () => {
     await waitFor(() => expect(screen.getByTestId("route-panel")).toBeInTheDocument());
     fireEvent.click(screen.getByTestId("route-close"));
     await waitFor(() => expect(screen.queryByTestId("route-panel")).toBeNull());
+  });
+
+  it("paginates with Show more", async () => {
+    mockedApi.search.mockResolvedValueOnce({ ...searchRes, next_cursor: "c1", total: 2 });
+    render(<App />);
+    fireEvent.click(screen.getByText("halal food open now"));
+    await waitFor(() => expect(screen.getByTestId("pagination")).toBeInTheDocument());
+    mockedApi.search.mockResolvedValueOnce({
+      ...searchRes,
+      results: [{ ...searchRes.results[0], event: { ...searchRes.results[0].event, id: "e2" } }],
+      next_cursor: null,
+      total: 2,
+    });
+    fireEvent.click(screen.getByTestId("pagination-next"));
+    await waitFor(() => expect(screen.getByTestId("pagination-end")).toBeInTheDocument());
+  });
+
+  it("saves and lists a saved search", async () => {
+    mockedApi.saveSearch.mockResolvedValue({ id: "s1", owner: "o", query: "halal food open now", label: "halal food open now", tags: [] });
+    mockedApi.deleteSavedSearch.mockResolvedValue(undefined);
+    render(<App />);
+    fireEvent.click(screen.getByText("halal food open now"));
+    await waitFor(() => expect(screen.getByTestId("saved-add")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("saved-add"));
+    await waitFor(() => expect(screen.getByTestId("saved-run")).toBeInTheDocument());
+    // run the saved search from the list
+    fireEvent.click(screen.getByTestId("saved-run"));
+    await waitFor(() => expect(mockedApi.search).toHaveBeenCalledTimes(2));
+    // delete it
+    fireEvent.click(screen.getByTestId("saved-delete"));
+    await waitFor(() => expect(screen.queryByTestId("saved-run")).toBeNull());
   });
 
   it("shows empty-results state", async () => {

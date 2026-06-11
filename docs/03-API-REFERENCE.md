@@ -193,3 +193,50 @@ case. `modes` is optional (defaults to walk/transit/drive).
   "fastest": { "mode": "drive", "total_duration_min": 16.6, "...": "..." }
 }
 ```
+
+---
+
+## POST `/api/search` — pagination
+
+`/search` accepts an optional `cursor` (opaque, tamper-evident). When supplied, the
+response includes `next_cursor` and `total` for load-more paging:
+
+```json
+{ "query": "open", "top_k": 3, "cursor": "eyJvIjowLCJjIjoi..." }
+```
+Response adds `"next_cursor"` (null at the end) and `"total"`.
+
+## POST `/api/search/batch`
+
+Run several queries in one call (max 20).
+
+```json
+{ "queries": ["stadium", "transit"], "top_k": 3 }
+```
+Returns `{ "responses": [ <SearchResponse>, ... ] }`.
+
+## Saved searches
+
+- `POST /api/saved-searches` — body `{ owner, query, label, tags? }` → created search.
+- `GET /api/saved-searches/{owner}/{id}` — fetch one (404 problem if missing).
+- `DELETE /api/saved-searches/{owner}/{id}` — delete (404 problem if missing).
+
+Saved searches are owner-scoped and backed by a versioned repository with optimistic
+concurrency.
+
+## GET `/api/flags`
+
+Evaluated feature flags: `{ "flags": { "reranking": true, "route_enrichment": true, ... } }`.
+
+## GET `/api/traces`
+
+Most recent spans (for debugging): `trace_id`, `span_id`, `parent_id`, `name`,
+`duration_ms`, `status`, `attributes`.
+
+## Admin / ops
+
+- `GET /api/admin/status` — events count, cache size/hit-rate, data staleness, flags.
+- `POST /api/admin/cache/flush` — clear the search cache, returning prior stats.
+- `POST /api/admin/reindex` — re-run ingestion into the event repository.
+
+These are protected by API-key auth when keys are configured.
