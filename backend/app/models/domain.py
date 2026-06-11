@@ -135,6 +135,16 @@ class LiveSignalIn(BaseModel):
     observed_at: datetime | None = None
 
 
+class RelevanceWeightsRequest(BaseModel):
+    """Update the hybrid-search + rerank relevance weights."""
+
+    keyword_weight: float = Field(ge=0.0, le=2.0)
+    vector_weight: float = Field(ge=0.0, le=2.0)
+    rerank_freshness: float = Field(default=0.3, ge=0.0, le=2.0)
+    rerank_distance: float = Field(default=0.2, ge=0.0, le=2.0)
+    rerank_open_now: float = Field(default=0.5, ge=0.0, le=2.0)
+
+
 class ChatRequest(BaseModel):
     """Inbound conversational request (answer is grounded in search results)."""
 

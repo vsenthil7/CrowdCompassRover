@@ -141,6 +141,11 @@ def get_availability():
     return _get_components().availability
 
 
+def get_relevance():
+    """Return the relevance-config store (FastAPI dependency)."""
+    return _get_components().relevance
+
+
 def get_tenants():
     """Return the tenant resolver (FastAPI dependency)."""
     return _get_components().tenants

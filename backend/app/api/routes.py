@@ -33,6 +33,7 @@ from app.api.deps import (
     get_webhooks,
     get_principal,
     get_policy,
+    get_relevance,
 )
 from app.authz.policy import PolicyEngine
 from app.authz.rbac import Permission, Principal
@@ -47,6 +48,7 @@ from app.models.domain import (
     ChatAnswer,
     ChatRequest,
     LiveSignalIn,
+    RelevanceWeightsRequest,
     RouteRequest,
     SavedSearchRequest,
     SearchRequest,
@@ -481,6 +483,43 @@ async def retention_sweep(
     results = sweeper.sweep()
     audit.record("system", "default", "retention.sweep", "all", "success")
     return {"swept": [{"name": r.name, "removed": r.removed} for r in results]}
+
+
+@router.get("/admin/relevance/weights")
+async def get_relevance_weights(
+    relevance=Depends(get_relevance),
+    principal: Principal = Depends(get_principal),
+    policy: PolicyEngine = Depends(get_policy),
+) -> dict:
+    """Return the current hybrid-search + rerank relevance weights."""
+    policy.require(principal, Permission.VIEW_ANALYTICS)
+    return relevance.get().to_dict()
+
+
+@router.put("/admin/relevance/weights")
+async def set_relevance_weights(
+    body: RelevanceWeightsRequest,
+    relevance=Depends(get_relevance),
+    principal: Principal = Depends(get_principal),
+    policy: PolicyEngine = Depends(get_policy),
+) -> dict:
+    """Update the relevance weights (admin only). Re-runs will use the new weights."""
+    policy.require(principal, Permission.ADMIN_REINDEX)
+    from app.admin.relevance import RelevanceConfig
+
+    try:
+        updated = relevance.set(
+            RelevanceConfig(
+                keyword_weight=body.keyword_weight,
+                vector_weight=body.vector_weight,
+                rerank_freshness=body.rerank_freshness,
+                rerank_distance=body.rerank_distance,
+                rerank_open_now=body.rerank_open_now,
+            )
+        )
+    except ValueError as exc:
+        raise ValidationError(str(exc)) from exc
+    return updated.to_dict()
 
 
 @router.get("/availability/{venue_id}")

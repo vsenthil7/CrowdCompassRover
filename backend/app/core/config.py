@@ -89,6 +89,17 @@ class Settings(BaseSettings):
     # Observability
     log_level: str = "INFO"
 
+    # Persistence backend: "memory" | "firestore" | "postgres"
+    persistence_backend: str = "memory"
+    # Redis (rate limiting + quota counters; empty = in-process fallback)
+    redis_url: str = ""
+    # GCP project (Firestore, Secret Manager, Cloud Monitoring)
+    gcp_project_id: str = ""
+    # GDPR data residency: "us" | "eu"
+    gdpr_data_residency: str = "us"
+    # Postgres DSN (used when persistence_backend=postgres)
+    postgres_dsn: str = ""
+
     @property
     def cors_origin_list(self) -> list[str]:
         """CORS origins as a list."""

@@ -33,6 +33,7 @@ from app.conversation.session import SessionStore
 from app.core.config import Settings
 from app.data.fixtures import load_fixture_events
 from app.availability.seed import seed_availability
+from app.admin.relevance import RelevanceConfigStore
 from app.availability.service import AvailabilityService
 from app.enrichment.google_routes import GoogleRouteProvider
 from app.enrichment.mock_routes import MockRouteProvider
@@ -94,6 +95,7 @@ class Components:
     retention: "RetentionSweeper"
     slo: "SloTracker"
     availability: "AvailabilityService"
+    relevance: "RelevanceConfigStore"
     closables: list[object]
 
 
@@ -399,5 +401,6 @@ def build_components(settings: Settings) -> Components:
         retention=retention,
         slo=slo,
         availability=seed_availability(load_fixture_events()),
+        relevance=RelevanceConfigStore(),
         closables=[*c1, *c2, *c3],
     )

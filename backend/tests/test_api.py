@@ -502,8 +502,45 @@ async def test_shutdown_closes_closables():
         retention=RetentionSweeper(),
         slo=SloTracker(),
         availability=AvailabilityService(),
+        relevance=__import__("app.admin.relevance", fromlist=["RelevanceConfigStore"]).RelevanceConfigStore(),
         closables=[_C(), object()],
     )
     await deps.shutdown_components()
     assert closed["v"] is True
     assert deps._components is None
+
+
+async def test_relevance_weights_get_and_put(admin_client):
+    # Default weights.
+    r = await admin_client.get("/api/admin/relevance/weights")
+    assert r.status_code == 200
+    assert r.json()["keyword_weight"] == 0.5
+
+    # Update.
+    r = await admin_client.put(
+        "/api/admin/relevance/weights",
+        json={"keyword_weight": 0.3, "vector_weight": 0.7},
+    )
+    assert r.status_code == 200
+    assert r.json()["vector_weight"] == 0.7
+
+    # Persisted within the app instance.
+    r = await admin_client.get("/api/admin/relevance/weights")
+    assert r.json()["keyword_weight"] == 0.3
+
+
+async def test_relevance_weights_validation_error(admin_client):
+    # Sum > 2.0 must be rejected by the domain validator -> 422.
+    r = await admin_client.put(
+        "/api/admin/relevance/weights",
+        json={"keyword_weight": 2.0, "vector_weight": 2.0},
+    )
+    assert r.status_code == 422
+
+
+async def test_relevance_weights_forbidden_for_anonymous(client):
+    r = await client.put(
+        "/api/admin/relevance/weights",
+        json={"keyword_weight": 0.5, "vector_weight": 0.5},
+    )
+    assert r.status_code == 403

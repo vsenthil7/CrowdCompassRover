@@ -97,6 +97,7 @@ next begins.
 | S75 | Real HTTP webhook sender + SSRF guard | httpx sender behind SSRF guard (loopback/private/link-local/metadata reject), live-mode wiring, injectable transport | ✅ |
 | S76 | Tenant key-scoping across stores | InMemoryEventRepository keys scoped by active tenant; structural cross-tenant isolation; isolation tests | ✅ |
 | S77 | Deploy + integration artifacts | MCP put_mapping/bulk_index/count; RRF hybrid query (open_now boost, tunable weights); Dockerfiles + compose; runbook; enhanced CI; SBOM/Makefile | ✅ |
+| S78 | Width modules (no-infra) | Persistence/Redis/GCP settings (P4.S1); geofence point-in-polygon (P6.S7); A/B answer-quality eval framework (P6.S11/P7.S3); relevance-tuning weights + admin API (P6.S3/P7.S4) | ✅ |
 
 ---
 
@@ -579,12 +580,29 @@ Sandbox-feasible playbook steps that need no live cloud/credentials:
 **Backend 565 / Frontend 174 tests, both 100%.** New backend code (MCP methods, RRF builder)
 fully covered; deploy/CI/runbook are artifacts validated structurally.
 
+### S78 — Width modules, no infra required (Perplexity P4.S1, P6.S7, P6.S11/P7.S3, P6.S3/P7.S4) ✅
+- **P4.S1** — `persistence_backend`, `redis_url`, `gcp_project_id`, `gdpr_data_residency`,
+  `postgres_dsn` settings (defaults keep mock mode unchanged).
+- **P6.S7** — `livesignals/geofence.py`: `GeoFence` ray-casting point-in-polygon +
+  `GeofenceRegistry` (per-tenant register/remove/validate). Validates that a live signal is
+  reported from inside a known zone for the tenant.
+- **P6.S11 / P7.S3** — `app/eval/` A/B answer-quality framework: models, registry, and a
+  runner that compares two answer variants and computes win/tie rates. Judge (live Gemini) is
+  optional — without it every comparison is a deterministic TIE, so the framework is fully
+  usable and tested in mock mode; agent failures record ERROR rows without aborting the run.
+- **P6.S3 / P7.S4** — `admin/relevance.py` `RelevanceConfig` + injectable
+  `RelevanceConfigStore`, wired into `Components` with `GET`/`PUT /admin/relevance/weights`
+  (view gated by VIEW_ANALYTICS, update by ADMIN_REINDEX; invalid weights -> 422). Feeds the
+  tunable weights the RRF query builder already accepts.
+
+**Backend 592 / Frontend 174 tests, both 100%.**
+
 ---
 
 ## Coverage Ledger
 | Layer | Tool | Target | Latest |
 |-------|------|-------:|-------:|
-| Backend | pytest-cov | 100% | ✅ 100.00% (565 tests, 3908 stmts) |
+| Backend | pytest-cov | 100% | ✅ 100.00% (592 tests, 4104 stmts) |
 | Frontend | vitest --coverage | 100% | ✅ 100.00% (174 tests) |
 | E2E flows | Playwright | 100% of journeys | ✅ 8 journeys (browser run pending CDN access; flows validated via live API) |
 
